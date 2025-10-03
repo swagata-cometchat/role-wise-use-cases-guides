@@ -1,0 +1,319 @@
+# Sales Lead Qualification & Handoff Workflow Guide
+
+> Build a Mastra-powered Sales Lead Qualification & Intelligent Routing agent: score and classify inbound inquiries, determine urgency, and route to the correct tier (enterprise, mid‑market, SMB, or human rep) — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- Multi‑tier sales qualification & routing agent (enterprise | mid-market | smb | human).
+- Lead scoring (1–10), urgency classification, recommended action string.
+- Workflow + tool orchestration (qualification workflow + qualifier tool).
+- Explicit invocation only when mentioned (e.g. `@agent`) if you enforce that pattern in UI.
+- CometChat-integrated AI Agent endpoint.
+
+***
+
+## Prerequisites
+
+- Node.js 20.9+ (align with project engines).
+- Existing Mastra project environment.
+- `.env` containing `OPENAI_API_KEY`.
+- Optional: CometChat application (for chat integration).
+
+***
+
+## Quick Links
+
+- Project README: `README.md`
+- Key Workflow: `src/mastra/workflows/sales-lead-qualification-workflow.ts`
+- Lead Qualifier Tool: `src/mastra/tools/sales-lead-qualifier-tool.ts`
+- Main Agent Config: `src/mastra/index.ts`
+- Agents Directory: `src/mastra/agents/`
+
+***
+
+## How It Works
+
+This example implements a routing-focused Sales Qualification system that:
+
+- Parses inbound sales inquiries (budget / size / complexity keywords).
+- Scores & classifies the lead (score + urgency + recommendedAction + notes).
+- Selects a routing tier: `enterprise | mid-market | smb | human`.
+- Uses supporting specialist sub‑agents for contextual qualification narratives.
+- Exposes a qualification workflow and a tool returning structured output (JSON validated via Zod).
+- Can be consumed via `/api/agents/salesLeadAgent/generate` or invoked internally in a workflow.
+
+Key components:
+- Agents: `enterprise-sales-agent.ts`, `mid-market-sales-agent.ts`, `smb-sales-agent.ts`, `human-sales-rep-agent.ts`, `sales-lead-qualifier-agent.ts` (if present), aggregated in `index.ts`.
+- Tool: `sales-lead-qualifier-tool.ts` (wraps scoring, routing & extraction logic).
+- Workflow: `sales-lead-qualification-workflow.ts` (input → qualifyLead step → structured output schema).
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install & bootstrap">
+    <code>cd human-handoff-agent-sales && npm install</code>. Add <code>OPENAI_API_KEY</code> to <code>.env</code>.
+  </Step>
+  <Step title="Review schemas">
+    Inspect input/output Zod schemas in the workflow to understand required fields (e.g. <code>inquiry</code>, optional <code>companySize</code>, <code>budget</code>). Output includes <code>assessment</code>, <code>routedTo</code>, <code>leadScore</code>, <code>urgencyLevel</code>, <code>recommendedAction</code>, <code>qualificationNotes</code>.
+  </Step>
+  <Step title="Adjust routing logic">
+    Modify keyword arrays & thresholds inside the qualifier tool / agent to match your GTM strategy (enterprise >$50k, mid-market ≥$10k, etc.).
+  </Step>
+  <Step title="Run locally">
+    Start dev server: <code>npx mastra dev</code>. Base API: <code>http://localhost:4111/api</code>.
+  </Step>
+  <Step title="Test qualification">
+    Use provided curl samples (SMB, Mid‑Market, Enterprise, Human handoff scenarios) to validate routing & final summary line formatting.
+  </Step>
+  <Step title="Integrate with CometChat">
+    Add AI Agent in CometChat Dashboard using ID <code>salesLeadAgent</code> and deployment URL to your public generate endpoint.
+  </Step>
+</Steps>
+
+***
+
+## Project Structure (Core)
+
+```
+human-handoff-agent-sales/
+├─ src/mastra/
+│  ├─ index.ts                         # Mastra configuration & agent registration
+│  ├─ agents/                          # Specialist & main qualification agents
+│  ├─ tools/
+│  │  └─ sales-lead-qualifier-tool.ts  # Qualification logic (tool form)
+│  └─ workflows/
+│     └─ sales-lead-qualification-workflow.ts
+├─ README.md
+├─ package.json
+└─ tsconfig.json
+```
+
+***
+
+## Core Data Flow
+
+1. Input arrives (user inquiry text, optional budget/company size).  
+2. Workflow / tool normalizes & lowercases content.  
+3. Keyword & numeric budget thresholds determine tier candidate.  
+4. Specialist sub-agent (enterprise / mid-market / smb) may enrich assessment.  
+5. Final object shaped to output schema: includes `routedTo`, `leadScore`, `urgencyLevel`, `recommendedAction`, `handoff` boolean, notes & narrative text.  
+6. Main agent (if used) formats a natural language reply ending with summary line pattern:  
+   `(tier | score: X/10 | urgency: Y | handoff: yes/no)`.
+
+***
+
+## Step 1 - Qualification Tool
+
+`src/mastra/tools/sales-lead-qualifier-tool.ts` (and transpiled output) defines:
+- Input Schema: `inquiry` (string), optional `companySize`, `budget`.
+- Output Schema: `assessment`, `routedTo`, `handoff`, `leadScore` (+ extended fields in workflow output).
+- Execution: pattern & threshold logic + delegation to sub-agents.
+
+> Customize: Update `enterpriseKeywords`, `midMarketKeywords`, `humanKeywords`, plus budget parsing logic for region-specific currency or alternative scoring models.
+
+***
+
+## Step 2 - Workflow
+
+`src/mastra/workflows/sales-lead-qualification-workflow.ts`:
+- Wraps the `qualifyLead` function in a workflow pipeline using `createWorkflow(...).then(qualifyLead).commit()`.
+- Output schema expands tool output with `urgencyLevel`, `recommendedAction`, `qualificationNotes`.
+- Use in orchestrations or future multi-step enrichment (CRM push, enrichment APIs, etc.).
+
+***
+
+## Step 3 - Agent Configuration
+
+`src/mastra/index.ts` registers the main `salesLeadAgent` with detailed instructions covering:
+- Routing tiers & definitions.
+- Score scale & urgency categories.
+- Mandatory summary line format for consistent downstream parsing.
+
+> Tip: Downstream systems (UI, CRM webhook) can regex match the trailing parenthetical summary to extract structured metadata without extra API calls.
+
+***
+
+## Step 4 - Run & Test
+
+<Steps>
+  <Step title="Start server">
+    <code>npx mastra dev</code> (inside <code>human-handoff-agent-sales</code> folder).
+  </Step>
+  <Step title="SMB test">
+    Validate routing to <code>smb</code> (budget & small team keywords).
+  </Step>
+  <Step title="Mid-Market test">
+    Provide ~50 employees & $25k budget.
+  </Step>
+  <Step title="Enterprise test">
+    Large company + custom integration + >$50k budget.
+  </Step>
+  <Step title="Human handoff test">
+    Include "VIP" / "strategic partnership" to trigger <code>human</code>.
+  </Step>
+</Steps>
+
+Example (Enterprise):
+
+```bash
+curl -s -X POST http://localhost:4111/api/agents/salesLeadAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@agent Fortune 500 enterprise needing scalable solution, $120k budget"}]}'
+```
+
+***
+
+## Step 5 - Connect to CometChat
+
+<Steps>
+  <Step title="Dashboard">
+    Open CometChat Dashboard → AI Agents.
+  </Step>
+  <Step title="Create agent">
+    Provider = Mastra, Agent ID = <code>salesLeadAgent</code>.
+  </Step>
+  <Step title="Deployment URL">
+    Public URL of <code>/api/agents/salesLeadAgent/generate</code>.
+  </Step>
+  <Step title="Enable">
+    Save & ensure status is enabled.
+  </Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs" />
+  <Card title="Mastra Docs" href="https://docs.mastra.ai" />
+</CardGroup>
+
+***
+
+## Step 6 - Customize
+
+- Add new tiers: extend enum arrays (schemas, tool, workflow) & create a new specialist agent.
+- Adjust scoring: Introduce weighted factors (budget weight, timeline urgency, companySize tiers) before final `leadScore`.
+- CRM integration: Add a post-qualification step sending payload to Salesforce / HubSpot via an additional tool.
+- Enrichment APIs: Insert a workflow step calling firmographic enrichment before routing.
+
+***
+
+## Step 7 - Production Hardening
+
+<Steps>
+  <Step title="Input validation">
+    Keep Zod schemas strict; reject truncation or malicious oversize payloads.
+  </Step>
+  <Step title="Rate limiting">
+    Add an API gateway or middleware to prevent abuse (per IP throttle on generate endpoint).
+  </Step>
+  <Step title="Observability">
+    Log `routedTo`, `leadScore`, `urgencyLevel` for funnel analytics.
+  </Step>
+  <Step title="Security">
+    Hide API keys; never expose <code>OPENAI_API_KEY</code> to frontend.
+  </Step>
+  <Step title="Resilience">
+    Wrap OpenAI calls with retry/backoff for transient failures.
+  </Step>
+</Steps>
+
+***
+
+## Testing Matrix
+
+| Scenario | Input Cues | Expected Route | Score Range | Urgency |
+|----------|------------|----------------|-------------|---------|
+| Enterprise | fortune 500, >$50k, custom integration | enterprise | 8–10 | high/critical |
+| Mid-Market | growing company, $25k, team solution | mid-market | 6–8 | medium/high |
+| SMB | small team, startup, limited budget | smb | 4–6 | low/medium |
+| Human | VIP, strategic partnership, complex scenario | human | 7–9 | medium/high |
+
+> Validate final parenthetical summary each time.
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required
+PORT=4111            # Optional override
+```
+
+***
+
+## Troubleshooting
+
+- Wrong routing: revisit keyword arrays & budget parse logic (non-numeric currency symbols may reduce parse accuracy).
+- Missing summary line: ensure agent instructions not truncated & model temperature not excessively high.
+- Handoff always true: verify logic branches for SMB set `handoff: false`.
+- Budget misread: sanitize/normalize currency (e.g., strip commas, symbols) before `parseInt`.
+
+***
+
+## Security Notes
+
+- Sanitize and log only non-sensitive lead info (avoid storing raw free-form PII beyond sales ops necessity).
+- Consider obfuscating or hashing identifiable fields before analytics.
+- Implement auth on generate endpoint in production (API keys / JWT / IP allowlist).
+
+***
+
+## Next Extensions
+
+<CardGroup>
+  <Card title="CRM Push Step" description="Add workflow node to push to Salesforce" />
+  <Card title="Scoring Model" description="Introduce ML-driven lead score w/ historical conversion" />
+  <Card title="Enrichment" description="Firmographics via Clearbit or Apollo.io" />
+  <Card title="A/B Instructions" description="Experiment with prompt variants for accuracy" />
+</CardGroup>
+
+***
+
+## Sample Parsing Snippet
+
+You can downstream-parse the structured summary line:
+
+```regex
+\((?<tier>enterprise|mid-market|smb|human) \| score: (?<score>\d{1,2})/10 \| urgency: (?<urgency>low|medium|high|critical) \| handoff: (?<handoff>yes|no)\)
+```
+
+***
+
+## Validation Curl Quick Reference
+
+```bash
+# SMB
+curl -s -X POST http://localhost:4111/api/agents/salesLeadAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"@agent We are a 5 person startup with a tight budget"}]}'
+
+# Mid-Market
+curl -s -X POST http://localhost:4111/api/agents/salesLeadAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"@agent Growing company 50 employees budget 25k looking to scale"}]}'
+
+# Enterprise
+curl -s -X POST http://localhost:4111/api/agents/salesLeadAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"@agent Fortune 500 corporation needs enterprise solution $120k budget custom integration"}]}'
+
+# Human / VIP
+curl -s -X POST http://localhost:4111/api/agents/salesLeadAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"@agent VIP partner exploring strategic partnership and special requirements"}]}'
+```
+
+***
+
+## Summary
+
+You now have a multi-tier lead qualification workflow that:
+- Produces structured JSON for routing & analytics.
+- Supplies consistent summary lines for lightweight parsing.
+- Is extensible (add tiers, scoring sophistication, CRM pushes).
+- Integrates directly with CometChat as an AI Agent.
+
+Optimize by monitoring conversion lift per routed tier and iteratively refining keyword & scoring logic.

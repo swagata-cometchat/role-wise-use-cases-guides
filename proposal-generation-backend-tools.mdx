@@ -1,0 +1,273 @@
+# Build Your Proposal Generation Backend Tools Agent with Mastra
+
+> Create a Mastra agent that automates proposal drafting, client lookups, historical tracking, and structured business outputs — then connect it to CometChat for sales team acceleration.
+
+***
+
+## What You’ll Build
+
+- **Mastra agent** `proposalGenerationAgent` for proposal + client operations.
+- Backend **tools**: `get-client`, `create-proposal`, `get-proposal-history`.
+- Structured proposal JSON (services, pricing, validity, status trail).
+- Explicit tool-grounded responses (agent explains what was done & next actions).
+- Optional CometChat AI Agent integration.
+
+***
+
+## Prerequisites
+
+- A Mastra project (e.g. `npx create-mastra@latest my-mastra-app`).
+- Node.js 20.9+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) CometChat app for chat integration.
+
+***
+
+## Quick Links
+
+- **Project README**: `README.md`
+- **Agent**: `src/mastra/agents/proposal-generation-agent.ts`
+- **Tools**: `src/mastra/tools/`
+  - `get-client-tool.ts`
+  - `create-proposal-tool.ts`
+  - `get-proposal-history-tool.ts`
+- **Mastra Config**: `src/mastra/index.ts`
+- **Environment Variables**: see README → Environment Variables
+
+***
+
+## How It Works
+
+This example implements a proposal automation backend where the agent:
+
+- Fetches & validates client context via `get-client`.
+- Generates multi-service proposals (pricing, totals, validity) via `create-proposal`.
+- Retrieves past proposals & status lifecycle via `get-proposal-history`.
+- Returns narrative guidance + structured details (IDs, totals, statuses, next steps).
+- Enforces rules: active client, future validity, at least one service line.
+
+Key components:
+- Agent Orchestration: uses registered tools; chooses correct tool based on user intent.
+- Tools: pure functions returning structured data for reliability/testing.
+- Output: descriptive answer + embedded structured JSON fields.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install dependencies and add <code>OPENAI_API_KEY</code> to <code>.env</code>.</Step>
+  <Step title="Review tools">Open each tool file to understand inputs/outputs and validation (client ID, validity date, services array).</Step>
+  <Step title="Register agent">Confirm <code>proposalGenerationAgent</code> is exported in <code>src/mastra/index.ts</code> and appears under <code>/api/agents</code>.</Step>
+  <Step title="Run locally">Start dev server: <code>npx mastra dev</code>. Base API: <code>http://localhost:4111/api</code>.</Step>
+  <Step title="Test flows">Use curl commands (below) to fetch clients, create proposals, list history.</Step>
+  <Step title="Integrate (optional)">Add agent in CometChat Dashboard (Provider=Mastra; ID <code>proposalGenerationAgent</code>).</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+proposal-generation-backend-tools/
+├─ src/mastra/
+│  ├─ index.ts                         # Registers proposalGenerationAgent & tools
+│  ├─ agents/
+│  │  └─ proposal-generation-agent.ts  # Chat + tool routing logic
+│  └─ tools/
+│     ├─ get-client-tool.ts            # Client lookup
+│     ├─ create-proposal-tool.ts       # Proposal creation
+│     ├─ get-proposal-history-tool.ts  # History retrieval
+│     └─ index.ts                      # Tool export barrel
+├─ package.json
+├─ tsconfig.json
+└─ README.md
+```
+
+***
+
+## Step 1 - Define Proposal Tools
+
+Each tool should:
+- Validate inputs (client ID, services list, validity date).
+- Return structured objects (proposal ID, totals, status, timestamps).
+- Throw meaningful errors (caught and sanitized at agent layer).
+
+> Customize: Extend `create-proposal` to add tax, discounts, currency conversion, or margin calculations.
+
+***
+
+## Step 2 - Register the Agent
+
+Inside `src/mastra/index.ts` ensure:
+- Agent key is `proposalGenerationAgent` → endpoint: `/api/agents/proposalGenerationAgent/generate`.
+- All three tools are included in the agent's tool array.
+- (Optional) Add system prompt instructions: always explain which tool was used + next recommended action.
+
+***
+
+## Step 3 - Run & Interact
+
+<Steps>
+  <Step title="Start dev server">Run <code>npx mastra dev</code>.</Step>
+  <Step title="List agents">GET or visit <code>/api/agents</code> (should list <code>proposalGenerationAgent</code>).</Step>
+  <Step title="Fetch client">Ask: "Show me details for client CLIENT-001".</Step>
+  <Step title="Create proposal">Provide services, price(s), validity date.</Step>
+  <Step title="View history">Ask: "Show me proposal history for CLIENT-002".</Step>
+</Steps>
+
+Example (create proposal):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/proposalGenerationAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Create a proposal for CLIENT-001 with cloud migration services for $50,000, duration 3 months, valid until 2025-12-31"}]}'
+```
+
+***
+
+## Step 4 - Connect to CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Go to CometChat Dashboard → AI Agents.</Step>
+  <Step title="Add agent">Provider=Mastra; Agent ID=<code>proposalGenerationAgent</code>.</Step>
+  <Step title="Deployment URL">Point to public <code>/api/agents/proposalGenerationAgent/generate</code>.</Step>
+  <Step title="Enable">Save & ensure toggle is active.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs/ai-agents" />
+  <Card title="Mastra Docs" href="https://docs.mastra.ai" />
+  <Card title="OpenAI" href="https://platform.openai.com/docs" />
+</CardGroup>
+
+***
+
+## Step 5 - Customize Behavior
+
+- Add currency normalization & multi-currency totals.
+- Integrate tax / discount rules.
+- Attach CRM push after proposal creation (HubSpot, Salesforce).
+- Add digital signature status tracking.
+- Append PDF generation + download link field.
+
+***
+
+## API Endpoint
+
+- POST `/api/agents/proposalGenerationAgent/generate` — chat & tool invocation.
+
+Expected base URL (local): `http://localhost:4111/api`.
+
+***
+
+## Sample Commands
+
+```bash
+# Get client info
+curl -s -X POST http://localhost:4111/api/agents/proposalGenerationAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Show me details for client CLIENT-001"}]}'
+
+# Create multi-service proposal
+curl -s -X POST http://localhost:4111/api/agents/proposalGenerationAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Create a comprehensive proposal for CLIENT-003 including system analysis ($25,000) and implementation ($60,000), valid for 6 months until 2026-03-31"}]}'
+
+# Get proposal history
+curl -s -X POST http://localhost:4111/api/agents/proposalGenerationAgent/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Show me proposal history for CLIENT-002"}]}'
+```
+
+***
+
+## Business Rules (Recap)
+
+| Rule | Description |
+|------|-------------|
+| Active Client | Only active clients can receive new proposals. |
+| Future Validity | `validUntil` must be in the future. |
+| Minimum Service | At least one service line required. |
+| Status Lifecycle | draft → sent → accepted/rejected/expired. |
+| Unique ID | Each proposal assigned unique identifier. |
+
+> Extend by adding approval gates (e.g. manager sign-off for > $100k).
+
+***
+
+## Security & Production Checklist
+
+- Add auth (JWT/API key) to the generate endpoint.
+- Enforce CORS allowlist for trusted origins.
+- Rate limit (IP + token based) to mitigate abuse.
+- Validate inputs (types, length, numeric ranges) before tool execution.
+- Avoid storing sensitive contact info unencrypted.
+- Log request metadata (not full PII) for audit & analytics.
+- Implement retry with exponential backoff on model/tool failures.
+
+***
+
+## Troubleshooting
+
+| Issue | Likely Cause | Fix |
+|-------|--------------|-----|
+| Client not found | Wrong ID / inactive | Run client list or verify sample data. |
+| Proposal rejected creation | Invalid date or no services | Provide future validity & at least one service. |
+| Tool not triggered | Prompt lacks clear intent | Rephrase: "Create a proposal..." or "Show me proposal history...". |
+| Missing totals | Service price/qty parse failure | Use numeric values (e.g. $5000 or 5000). |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""     # Required OpenAI key
+PORT=4111              # Optional server port override
+```
+
+***
+
+## Extensibility Ideas
+
+<CardGroup>
+  <Card title="CRM Sync" description="Push proposals to Salesforce / HubSpot" />
+  <Card title="Signature" description="Integrate e-sign platform for acceptance" />
+  <Card title="Billing" description="Generate draft invoices on acceptance" />
+  <Card title="Analytics" description="Funnel & conversion dashboards" />
+</CardGroup>
+
+***
+
+## Parsing Output (Example)
+
+If the agent appends a structured summary line like:
+```
+(proposal: PROPOSAL-123 | client: CLIENT-001 | total: 85000 | status: draft | validUntil: 2025-12-31)
+```
+You can extract via regex:
+```regex
+\(proposal: (?<id>[A-Z0-9-]+) \| client: (?<client>[A-Z0-9-]+) \| total: (?<total>\d+) \| status: (?<status>draft|sent|accepted|rejected|expired) \| validUntil: (?<date>\d{4}-\d{2}-\d{2})\)
+```
+
+***
+
+## Validation Flow
+
+<Steps>
+  <Step title="Client query works">Returns structured client object (id, industry, contacts).</Step>
+  <Step title="Proposal creation works">Response includes proposal ID, services array, subtotal/total, validity.</Step>
+  <Step title="History retrieval works">Shows chronological list with statuses.</Step>
+  <Step title="Edge cases handled">Inactive client + past validity date produce clear errors.</Step>
+</Steps>
+
+***
+
+## Summary
+
+You now have a backend-focused proposal automation agent that:
+- Centralizes client retrieval, proposal drafting, and history tracking.
+- Produces structured, machine-parseable outputs.
+- Is easily extensible for CRM, billing, PDF, and signature integrations.
+- Can be surfaced directly inside CometChat for sales acceleration.
+
+Iterate by layering analytics, approval workflows, and automated follow-up orchestration.

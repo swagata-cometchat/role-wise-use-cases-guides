@@ -1,0 +1,258 @@
+# Build Your Sales FAQ Knowledge Agent with Mastra
+
+> Create a Mastra agent that answers sales questions using an internal knowledge base (markdown docs + ingested sources) — then optionally expose it through CometChat for reps & prospects.
+
+***
+
+## What You’ll Build
+
+- **Sales FAQ agent** (`sales-faq`) that performs retrieval‑augmented responses.
+- **Knowledge ingestion & search tools** (`ingestSources`, `searchDocs`).
+- **Search endpoints** for CRUD-like expansion of the sales knowledge namespace.
+- Optional **CometChat AI Agent** integration for omnichannel access.
+
+***
+
+## Prerequisites
+
+- Mastra project environment (Node.js 18+).
+- OpenAI API key (`OPENAI_API_KEY` in `.env`).
+- Port default: `4000` (override via `PORT`).
+- (Optional) CometChat application.
+
+***
+
+## Quick Links
+
+- **Project README**: `README.md`
+- **Agent**: `src/mastra/agents/sales-faq-agent.ts`
+- **Tools**: `src/mastra/tools/`
+  - `docs-retriever.ts`
+  - `ingest-sources.ts`
+- **Routes**: `src/mastra/server/routes/`
+  - `searchDocs.ts`
+  - `ingest.ts`
+- **Error Utility**: `src/mastra/server/util/safeErrorMessage.ts`
+- **Knowledge Base Root**: `knowledge/sales/`
+
+***
+
+## How It Works
+
+The Sales FAQ agent implements retrieval‑augmented answering:
+
+- Ingestion: text / markdown / URL / (configured) sources added via `ingestSources`.
+- Storage: content embedded & indexed (vector + metadata) under namespace `sales`.
+- Retrieval: on query, relevant docs fetched via `searchDocs` tool / endpoint.
+- Synthesis: agent composes answer citing authoritative segments; avoids hallucination when insufficient evidence.
+- Expansion: operators can add new docs without redeploy via API ingestion.
+
+Key components:
+- **Agent**: orchestrates tool usage; system prompt enforces citation & honesty.
+- **Tools**: modular retrieval & ingestion for maintainability.
+- **Server Routes**: expose ingestion & search for external automation.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>sales-faq-agent</code>.</Step>
+  <Step title="Add environment">Create <code>.env</code> with <code>OPENAI_API_KEY</code> (& optional <code>PORT</code>).</Step>
+  <Step title="Seed knowledge base">Ensure initial markdown files exist under <code>knowledge/sales/</code> (already provided).</Step>
+  <Step title="Start server">Run <code>npm run dev</code>. Visit <code>http://localhost:4000/swagger</code>.</Step>
+  <Step title="Test agent">POST to <code>/api/agents/sales-faq/generate</code> asking a pricing question.</Step>
+  <Step title="Test search">POST to <code>/api/tools/searchDocs</code> with a keyword to verify retrieval.</Step>
+  <Step title="Optional CometChat">Register agent ID <code>sales-faq</code> in CometChat Dashboard.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+sales-faq-agent/
+├─ knowledge/
+│  └─ sales/
+│     ├─ general-sales-faq.md
+│     ├─ product-features-guide.md
+│     └─ competitive-analysis.md
+├─ src/mastra/
+│  ├─ index.ts
+│  ├─ agents/
+│  │  └─ sales-faq-agent.ts
+│  ├─ tools/
+│  │  ├─ docs-retriever.ts
+│  │  ├─ ingest-sources.ts
+│  │  └─ index.ts
+│  └─ server/
+│     ├─ routes.ts
+│     ├─ routes/
+│     │  ├─ searchDocs.ts
+│     │  └─ ingest.ts
+│     └─ util/
+│        └─ safeErrorMessage.ts
+├─ README.md
+├─ package.json
+└─ tsconfig.json
+```
+
+***
+
+## Knowledge Strategy
+
+- **Granularity**: Keep documents modular (feature guide vs competitive vs pricing) for higher retrieval precision.
+- **Neutral Tone**: Content should be factual; marketing hyperbole reduces answer credibility.
+- **Metadata**: Consider extending ingestion to tag each chunk (topic, version, featureFlag) for filtered retrieval.
+
+***
+
+## Step 1 - Ingest Content
+
+You can expand the KB without code changes using the ingestion route:
+```bash
+curl -X POST http://localhost:4000/api/tools/ingestSources \
+ -H 'Content-Type: application/json' \
+ -d '{"sources":["https://example.com/new-feature","Our enterprise SLA is 99.95% uptime"],"namespace":"sales"}'
+```
+Returns summary of items accepted / skipped. Validate new queries pick up this data.
+
+***
+
+## Step 2 - Search Content
+
+```bash
+curl -X POST http://localhost:4000/api/tools/searchDocs \
+ -H 'Content-Type: application/json' \
+ -d '{"query":"pricing plans","namespace":"sales","maxResults":3}'
+```
+Response includes matched snippets & relevance scores; agent uses similar retrieval internally.
+
+***
+
+## Step 3 - Chat with Agent
+
+```bash
+curl -X POST http://localhost:4000/api/agents/sales-faq/generate \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"What differentiates you from competitors?"}]}'
+```
+Agent should cite or reference comparative advantages grounded in `competitive-analysis.md`.
+
+***
+
+## Endpoint Summary
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | /api/agents/sales-faq/generate | Ask sales questions (RAG) |
+| POST | /api/tools/searchDocs | Direct retrieval (programmatic) |
+| POST | /api/tools/ingestSources | Add new documents / text sources |
+| GET  | /swagger | API documentation UI |
+
+Base (local): `http://localhost:4000`.
+
+***
+
+## Connect to CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Navigate to CometChat Dashboard → AI Agents.</Step>
+  <Step title="Add agent">Provider=Mastra; Agent ID=<code>sales-faq</code>.</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/sales-faq/generate</code>.</Step>
+  <Step title="Enable">Save & confirm enabled toggle.</Step>
+  <Step title="Test in widget">Open preview & ask pricing / competitor questions.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs/ai-agents" />
+  <Card title="Mastra Docs" href="https://docs.mastra.ai" />
+</CardGroup>
+
+***
+
+## Customize & Improve
+
+- **Citation Format**: Enforce inline references (e.g., [Product Features Guide]).
+- **Answer Guardrails**: In prompt: refuse pricing commitments if not present in docs.
+- **Freshness Field**: Add `lastUpdated` metadata to doc chunks and surface in answers.
+- **Multi-Namespace**: Add `marketing`, `legal` namespaces with the same ingestion pattern.
+
+***
+
+## Integration Ideas
+
+<CardGroup>
+  <Card title="CRM Side Panel" description="Surface agent inside rep workflow" />
+  <Card title="Web Chat Bot" description="Prospect self-service pre-sales" />
+  <Card title="Slack Helper" description="Internal channel Q&A integration" />
+  <Card title="Analytics Layer" description="Track unanswered queries" />
+</CardGroup>
+
+***
+
+## Test Matrix
+
+| Scenario | Query | Expected Behavior |
+|----------|-------|-------------------|
+| Pricing | "pricing plans" | Returns tier overview citing pricing doc. |
+| Feature Depth | "integration options" | Lists integration capabilities & limits. |
+| Competitor | "compare to Salesforce" | Structured contrast; no unverified claims. |
+| Out of Scope | "medical advice" | Declines; states scope limitation. |
+| Newly Ingested | Ask about ingested URL phrase | Surfaces fresh content snippet. |
+
+***
+
+## Security & Production Checklist
+
+- Add auth (API key/JWT) to ingestion & search endpoints.
+- Limit ingestion size & sanitize HTML/URLs.
+- Rate limit high-frequency search queries.
+- Log only minimal metadata; avoid sensitive PII in KB docs.
+- Version control critical markdown; review before ingestion to production index.
+- Monitor unanswered or low-confidence queries for KB gaps.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| Empty retrieval | Namespace mismatch | Use <code>namespace":"sales"</code>. |
+| Hallucinated answer | Missing guardrails | Strengthen system prompt; require citations. |
+| Slow responses | Large embedding set | Implement top-k limit & chunk size tuning. |
+| Ingestion failure | Invalid source format | Provide plain text or reachable URL. |
+| 404 agent path | Registration missing | Confirm export in <code>index.ts</code>. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required
+PORT=4000            # Optional server port
+LOG_LEVEL=info       # debug | info | warn | error
+```
+
+***
+
+## Next Extensions
+
+<CardGroup>
+  <Card title="Doc Versioning" description="Track & query by version tags" />
+  <Card title="Feedback Loop" description="Collect thumbs-up/down per answer" />
+  <Card title="Confidence Scores" description="Expose retrieval score & threshold" />
+  <Card title="Scheduled Reindex" description="Automate nightly ingestion sweeps" />
+</CardGroup>
+
+***
+
+## Summary
+
+You now have a retrieval-augmented Sales FAQ agent that:
+- Ingests dynamic sales collateral.
+- Retrieves and synthesizes authoritative answers.
+- Scales across channels (CometChat / internal tools).
+- Is structured for extension (multi-namespace, analytics, citation policies).
+
+Iterate by measuring unresolved queries, adding targeted documents, and enforcing strict citation rules to maintain trust.

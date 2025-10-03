@@ -1,0 +1,272 @@
+# Build Your Sales Meeting Scheduling Coordinator Agent with Mastra
+
+> Create a Mastra agent that intelligently classifies and schedules sales meetings, routes high‑impact requests for approval, coordinates complex multi‑attendee sessions, and returns structured scheduling outcomes — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Scheduling coordination agent** that interprets natural language meeting requests.
+- Smart **routing logic**: `auto-scheduled`, `sales-manager`, `calendar-coordinator`, `requires-approval`.
+- A **tool** (`salesMeetingSchedulingCoordinator`) encapsulating validation + meeting orchestration.
+- Structured JSON output (routedTo, scheduled, meetingDetails, priority, nextSteps).
+- Optional CometChat AI Agent integration for in‑chat scheduling assistance.
+
+***
+
+## Prerequisites
+
+- Node.js 20.9+ (as declared in `package.json`).
+- Mastra CLI installed (comes via dependency, scripts use it).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) Public deployment or tunnel (for CometChat integration).
+
+***
+
+## Quick Links
+
+- **Project README**: `README.md`
+- **Agent Config**: `src/mastra/index.ts`
+- **Scheduling Tool**: `src/mastra/tools/sales-meeting-scheduling-coordinator-tool.ts`
+- **Package / Scripts**: `package.json`
+- **Environment Example**: `.env.example`
+
+***
+
+## How It Works
+
+The Sales Meeting Scheduling Coordinator Agent:
+
+- Parses inbound meeting requests (intent, priority indicators, complexity, stakeholders).
+- Applies routing rules:
+  - `auto-scheduled`: simple demos, discovery calls, follow-ups.
+  - `sales-manager`: enterprise / C‑level / contract / strategic / high-stakes.
+  - `calendar-coordinator`: multi-attendee, workshops, cross-team, timezone complexity.
+  - `requires-approval`: special authorization scenarios.
+- Generates structured response with `priority`, `meetingDetails` (date/time/duration/location/id), and `nextSteps`.
+- Always ends responses with canonical summary line pattern: `(routedTo | scheduled: yes/no | priority: <priority>)` for downstream parsing.
+- Tool execution (`salesMeetingSchedulingCoordinator`) centralizes logic for testability.
+
+Key components:
+- Agent: created in `src/mastra/index.ts` (name: “Sales Meeting Scheduling Coordinator Agent”).
+- Tool: `sales-meeting-scheduling-coordinator-tool.ts` (Zod input & output schemas + execution).
+- Internal logic class (imported inside tool) processes classification & scheduling heuristics.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    <code>cd scheduling-sales-meeting-coordinator-agent && npm install</code>
+  </Step>
+  <Step title="Add environment">
+    Create <code>.env</code> with <code>OPENAI_API_KEY=...</code>. (See <code>.env.example</code> if present.)
+  </Step>
+  <Step title="Review tool schema">
+    Open <code>sales-meeting-scheduling-coordinator-tool.ts</code> to examine required <code>request</code> field & optional <code>preferredDate</code>, <code>preferredTime</code>, <code>attendees</code>.
+  </Step>
+  <Step title="Adjust routing logic">
+    Modify internal classification (keywords or thresholds) inside agent/tool implementation if business rules differ.
+  </Step>
+  <Step title="Run locally">
+    <code>npm run dev</code> (Mastra dev server). Default port typically <code>4111</code> unless overridden; check terminal output.
+  </Step>
+  <Step title="Test scheduling">
+    Use curl examples below to validate each routing path & summary line consistency.
+  </Step>
+  <Step title="(Optional) Integrate with CometChat">
+    Expose public URL for <code>/api/agents/Sales%20Meeting%20Scheduling%20Coordinator%20Agent/generate</code> and register in Dashboard.
+  </Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+scheduling-sales-meeting-coordinator-agent/
+├─ src/mastra/
+│  ├─ index.ts                               # Mastra setup & agent registration
+│  └─ tools/
+│     └─ sales-meeting-scheduling-coordinator-tool.ts  # Tool w/ Zod schemas & execute()
+├─ README.md
+├─ package.json
+├─ tsconfig.json
+└─ .env.example
+```
+
+***
+
+## Step 1 - Create / Configure the Agent
+
+Ensure `src/mastra/index.ts` defines the agent with:
+- Clear instructions covering routing tiers, professionalism, clarification prompts.
+- Model selection (`openai('gpt-4')` currently).
+- Tool mapping: `{ salesMeetingSchedulingCoordinator: salesMeetingSchedulingCoordinatorTool }`.
+- Required ending pattern: `(routedTo | scheduled: yes/no | priority: priority)`.
+
+> Tip: Standardize pattern to enable regex parsing in UI for badges / icons.
+
+***
+
+## Step 2 - Define the Scheduling Tool
+
+In `sales-meeting-scheduling-coordinator-tool.ts`:
+- Input schema enforces a `request` plus optional scheduling preferences.
+- Output schema returns structured scheduling results + `nextSteps` array.
+- Execution delegates to internal coordinator logic for classification & synthetic meeting details (ID, duration, etc.).
+
+> Extend: Add fields like `timezone`, `platform` (Zoom/Teams), `requiredMaterials`, or `followUpTaskIds`.
+
+***
+
+## Step 3 - Run & Interact
+
+<Steps>
+  <Step title="Start dev server"><code>npm run dev</code></Step>
+  <Step title="List agents">GET <code>/api/agents</code> (ensure the agent name appears). If spaces encoded, URL path uses encoded name.</Step>
+  <Step title="Schedule simple demo">Send a request mentioning "demo" or "discovery" → expect <code>auto-scheduled</code>.</Step>
+  <Step title="Enterprise request">Include terms like "enterprise", "C-level", "contract signing" → expect <code>sales-manager</code>.</Step>
+  <Step title="Complex multi-attendee">Mention multiple teams / workshop → expect <code>calendar-coordinator</code>.</Step>
+  <Step title="Approval case">Use phrasing indicating restricted / special authorization → <code>requires-approval</code>.</Step>
+</Steps>
+
+Sample (Auto-Scheduled):
+```bash
+curl -s -X POST "http://localhost:4111/api/agents/Sales%20Meeting%20Scheduling%20Coordinator%20Agent/generate" \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Schedule a product demo tomorrow at 2 PM with our new prospect"}]}'
+```
+
+***
+
+## Step 4 - Connect to CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Go to CometChat → AI Agents.</Step>
+  <Step title="Add agent">Set Provider = Mastra.</Step>
+  <Step title="Agent ID">Use the exact agent name (URL-encoded when calling HTTP). If renaming, prefer an ID without spaces (e.g. <code>sales-meeting-coordinator</code>).</Step>
+  <Step title="Deployment URL">Public endpoint to <code>/api/agents/&lt;agent-id-or-encoded-name&gt;/generate</code>.</Step>
+  <Step title="Enable & Test">Save, enable toggle, test inside preview widget.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs/ai-agents" />
+  <Card title="Mastra Docs" href="https://docs.mastra.ai" />
+  <Card title="OpenAI" href="https://platform.openai.com/docs" />
+</CardGroup>
+
+***
+
+## Step 5 - Parsing the Summary Line
+
+Pattern produced at end of responses:
+```
+(routedTo | scheduled: yes/no | priority: low|medium|high)
+```
+Example:
+```
+(auto-scheduled | scheduled: yes | priority: low)
+```
+Regex example:
+```regex
+\((?<routedTo>auto-scheduled|sales-manager|calendar-coordinator|requires-approval) \| scheduled: (?<scheduled>yes|no) \| priority: (?<priority>low|medium|high)\)
+```
+
+***
+
+## Sample Requests Matrix
+
+| Scenario | User Prompt Snippet | Expected routedTo | Priority |
+|----------|---------------------|-------------------|----------|
+| Simple demo | "product demo" | auto-scheduled | low |
+| Discovery follow-up | "follow-up discovery" | auto-scheduled | low |
+| Enterprise contract | "enterprise contract signing" | sales-manager | high |
+| C-level strategy | "C-level executive briefing" | sales-manager | high |
+| Multi-team workshop | "cross-team workshop with marketing & success" | calendar-coordinator | medium |
+| Complex training | "training session for both region teams" | calendar-coordinator | medium |
+| Special approval | "confidential pricing review needs authorization" | requires-approval | high |
+
+> Validate each returns correct summary line & structured JSON fields.
+
+***
+
+## Extended Curl Examples
+
+Enterprise:
+```bash
+curl -s -X POST "http://localhost:4111/api/agents/Sales%20Meeting%20Scheduling%20Coordinator%20Agent/generate" \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Schedule an enterprise contract signing with the CFO and legal team next Tuesday 11 AM"}]}'
+```
+
+Calendar Coordination:
+```bash
+curl -s -X POST "http://localhost:4111/api/agents/Sales%20Meeting%20Scheduling%20Coordinator%20Agent/generate" \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"We need a 90 min workshop across sales, marketing, and product next week"}]}'
+```
+
+Approval Needed:
+```bash
+curl -s -X POST "http://localhost:4111/api/agents/Sales%20Meeting%20Scheduling%20Coordinator%20Agent/generate" \
+ -H 'Content-Type: application/json' \
+ -d '{"messages":[{"role":"user","content":"Arrange a confidential pricing escalation meeting requiring SVP approval"}]}'
+```
+
+***
+
+## Production Checklist
+
+- Add auth (API key / JWT) on generate endpoint.
+- Enforce request size limits & basic rate limiting.
+- Sanitize user-provided attendee arrays & strip PII logging.
+- Normalize date/time (convert to ISO; consider timezone detection).
+- Implement retry/backoff around LLM calls.
+- Add monitoring for routing distribution (detect skew / misclassification drift).
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Always auto-scheduled | Insufficient high/complexity keywords | Expand keyword set / add rules for priority terms |
+| Priority misclassified | Ambiguous phrasing | Prompt user for clarification; enhance heuristic weighting |
+| Missing summary line | Prompt edited / truncated | Reaffirm pattern in agent instructions |
+| Unscheduled but should be yes | Tool logic conditional failed | Inspect tool execute path & meeting detail generation |
+| Endpoint 404 | Agent name encoding issue | URL encode spaces or rename agent to slug |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""    # Required OpenAI key
+PORT=4111             # (Optional) override default dev port
+LOG_LEVEL=info        # (Optional) logging verbosity
+```
+
+***
+
+## Next Enhancements
+
+<CardGroup>
+  <Card title="Calendar API" description="Integrate Google/Microsoft Graph for real availability" />
+  <Card title="Timezone Intelligence" description="Auto-detect & propose overlap slots" />
+  <Card title="Follow-Up Tasks" description="Create CRM follow-up tasks post scheduling" />
+  <Card title="Reminder Workflow" description="Automate reminders & reschedule suggestions" />
+</CardGroup>
+
+***
+
+## Summary
+
+You now have a Sales Meeting Scheduling Coordinator Agent that:
+- Classifies & routes meeting intents.
+- Produces consistent, parseable summary lines.
+- Returns structured scheduling metadata.
+- Is ready for multi-channel deployment via CometChat.
+
+Iterate by integrating live calendar APIs, refining classification heuristics, and capturing analytics on conversion impact of faster scheduling.
