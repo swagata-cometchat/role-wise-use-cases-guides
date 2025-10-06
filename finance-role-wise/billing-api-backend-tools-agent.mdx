@@ -1,0 +1,234 @@
+# Build Your Billing Operations Backend Tools Agent with Mastra
+
+> Create a Mastra agent that centralizes customer billing, invoice generation, payment processing, refunds, and financial insights via secure backend tools — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra agent** (`billingApiAgent`) exposing a chat endpoint for billing operations.
+- Backend tools for: customer info, invoices (create/list/update/mark paid/overdue detection), payments (process/list/refund/history).
+- Structured financial responses (amounts formatted, transaction IDs, status explanations).
+- Optional CometChat AI Agent integration for in‑chat finance assistance.
+
+***
+
+## Prerequisites
+
+- Node.js 20.9+ (recommended)
+- A Mastra project or this example folder
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat app
+
+***
+
+## Quick links
+
+- **README**: ./README.md
+- **Agent**: `src/mastra/agents/billing-api-agent.ts`
+- **Tools**: `src/mastra/tools/get-customer-tool.ts`, `manage-invoices-tool.ts`, `process-payment-tool.ts`
+- **Mastra Config**: `src/mastra/index.ts`
+- **Endpoint (local)**: `POST http://localhost:4111/api/agents/billingApiAgent/generate`
+
+***
+
+## How it works
+
+The Billing API Backend Tools Agent uses declarative tools to perform operations:
+
+- Customer Retrieval: fetch single or list; surface billing cycle, outstanding balance, status.
+- Invoice Management: create invoices (auto tax calc), filter by status (pending, paid, overdue), mark paid, list overdue.
+- Payment Processing: simulate payment execution (90% success), list/filter payments, issue refunds, show history.
+- Data Formatting: ensures currency formatting and includes reference IDs (invoice, payment, transaction) for traceability.
+
+Routing Logic (Conceptual):
+- Natural language parsed → determine intent (customer vs invoice vs payment).
+- Required parameters missing? Agent asks clarifying question (only when critical).
+- Executes matching tool, returns structured summary + next-step guidance.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> in <code>billing-api-backend-tools-agent</code>.</Step>
+  <Step title="Add env file">Create <code>.env</code> with <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review agent">Open <code>billing-api-agent.ts</code> for instructions & tool registration.</Step>
+  <Step title="Start dev server">Run <code>npx mastra dev</code> (or <code>npm run dev</code> if script present).</Step>
+  <Step title="Test endpoint">POST to <code>/api/agents/billingApiAgent/generate</code> with a messages array.</Step>
+  <Step title="Extend tools">Add new tool files (e.g. <code>revenue-report-tool.ts</code>) and export via <code>tools/index.ts</code>.</Step>
+  <Step title="Integrate CometChat">Expose public generate endpoint & register agent.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime
+  - `package.json`, `tsconfig.json`, `.env.example`
+- Mastra
+  - `src/mastra/index.ts` (registers agent key: <code>billingApiAgent</code>)
+- Agent
+  - `src/mastra/agents/billing-api-agent.ts`
+- Tools
+  - `get-customer-tool.ts`
+  - `manage-invoices-tool.ts`
+  - `process-payment-tool.ts`
+  - `index.ts` (exports tools)
+
+> Endpoint derives from the key in `agents: { billingApiAgent }` → `/api/agents/billingApiAgent/generate`.
+
+***
+
+## Step 1 - Define the Agent
+
+Ensure the agent:
+- Name (display) is "Billing API Backend Tools Agent" (internal key is `billingApiAgent`).
+- Instructions outline capabilities & guidelines (already present).
+- Registers tools: `getCustomerTool`, `manageInvoicesTool`, `processPaymentTool`.
+- Provides professional, precise financial output with formatted currency.
+
+***
+
+## Step 2 - Tool Responsibilities
+
+| Tool | Purpose | Common Actions |
+|------|---------|----------------|
+| get-customer | Retrieve customer(s), balances, filters | by ID, by billing cycle, outstanding only |
+| manage-invoices | Create/list/update invoices | create invoice, list overdue, mark paid |
+| process-payment | Process/list/refund payments | process new payment, refund, history, filter failed |
+
+Add new tools for: revenue summaries, MRR, AR aging, churn risk.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Start server">Run <code>npx mastra dev</code>.</Step>
+  <Step title="Customer lookup">Ask for customer billing status.</Step>
+  <Step title="Create invoice">Provide customer, amount(s), due date, description.</Step>
+  <Step title="Process payment">Specify customer, amount, method.</Step>
+  <Step title="Refund payment">Reference payment ID.</Step>
+  <Step title="List overdue">Request overdue invoices.</Step>
+</Steps>
+
+Sample (Customer Details):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/billingApiAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Show me billing details for customer CUST-001"}]}'
+```
+
+Sample (Create Invoice):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/billingApiAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Create an invoice for customer CUST-002 for $1500 due 2025-11-15 for Monthly subscription services"}]}'
+```
+
+***
+
+## Step 4 - CometChat Configuration
+
+<Steps>
+  <Step title="Dashboard">Open CometChat → AI Agents.</Step>
+  <Step title="Add agent">Provider = Mastra, Agent ID = <code>billingApiAgent</code>.</Step>
+  <Step title="Deployment URL">Public URL of <code>/api/agents/billingApiAgent/generate</code>.</Step>
+  <Step title="Enable">Save & toggle Enabled.</Step>
+</Steps>
+
+> After enabling, users can request invoices, payments, and billing summaries directly in chat.
+
+***
+
+## Step 5 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Open the agent variant from AI Agents.</Step>
+  <Step title="Prompt tuning">Add constraints: "Always verify customer existence and cite invoice/payment IDs."</Step>
+  <Step title="Layout & branding">Adjust theme & UI elements.</Step>
+  <Step title="Preview">Execute test prompts (invoice creation, overdue listing).</Step>
+</Steps>
+
+***
+
+## Step 6 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" href="/widget/ai-agents" description="Embed finance assistant" horizontal />
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" description="Drop-in chat components" horizontal />
+</CardGroup>
+
+> Minimal client logic needed—just call the generate endpoint.
+
+***
+
+## Step 7 - Test Your Setup
+
+<Steps>
+  <Step title="Customer retrieval">Returns company, cycle, outstanding balance.</Step>
+  <Step title="Invoice creation">Shows invoice ID, line items, tax, total, due date.</Step>
+  <Step title="Payment process">Returns payment + transaction IDs; status completed/pending/failed.</Step>
+  <Step title="Refund">Negative amount entry + original marked refunded.</Step>
+  <Step title="Overdue listing">Invoices filtered by due date logic.</Step>
+  <Step title="Error handling">Meaningful messages on invalid IDs.</Step>
+</Steps>
+
+***
+
+## Endpoint Summary
+
+- POST `/api/agents/billingApiAgent/generate` — Unified billing operations interface.
+
+***
+
+## Security & Production Checklist
+
+- Require auth (JWT/API key) before exposing billing operations publicly.
+- Restrict CORS to trusted origins.
+- Add rate limiting (prevent abuse on payment & invoice creation paths).
+- Persist data (replace in-memory stubs with DB storage: Postgres, MySQL, etc.).
+- Log audit trails (who created invoice, who processed payment, timestamps).
+- Mask or vault sensitive payment attributes (PCI considerations).
+- Add idempotency keys for payment processing & refund operations.
+- Validate all monetary inputs (non-negative, currency whitelist).
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| Customer not found | Invalid ID | Verify ID; list customers first |
+| Invoice not created | Missing required fields | Include customer, amount(s), due date |
+| Payment failed often | Random failure simulation | Retry; integrate real gateway in prod |
+| Refund denied | Payment not completed | Only completed payments refundable |
+| Overdue list empty | Dates not past due | Adjust system date or due date input |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required for LLM tool reasoning
+PORT=4111            # If using custom server wrapper
+```
+
+***
+
+## Next Enhancements
+
+- Add revenue / MRR / aging report tools.
+- Introduce subscription & usage-based billing tools.
+- Multi-currency & FX rate normalization.
+- Webhooks for payment success/failure events.
+- Role-based access (finance vs support vs sales).
+- Export CSV / BI integration connectors.
+
+***
+
+## Summary
+
+You now have a Billing Operations Agent leveraging tool-based actions for customers, invoices, and payments. Extend it by adding persistence, analytics, role-based security, and real gateway integrations while preserving structured, auditable responses.
+
