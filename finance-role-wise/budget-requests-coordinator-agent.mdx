@@ -1,0 +1,240 @@
+# Build Your Budget Requests Coordinator Agent with Mastra
+
+> Create a Mastra agent that analyzes budget requests, routes them to the correct approver (auto-approve, department manager, finance manager, or documentation required), and returns structured guidance — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra agent** `budgetRequestCoordinatorAgent` that processes budget requests.
+- Intelligent routing logic (auto-approved → department → finance → requires documentation).
+- Priority classification + standardized summary suffix.
+- (Optional) Supporting approver logic (department & finance manager agents) via imported modules/tools.
+- CometChat integration so employees can ask: “@budget need $2,500 for training”.
+
+***
+
+## Prerequisites
+
+- A Mastra project (or this example folder).
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) CometChat app.
+
+***
+
+## Quick links
+
+- **Project README**: ./README.md
+- **Agent**: ./src/mastra/index.ts → `budgetRequestCoordinatorAgent`
+- **Coordinator Logic**: ./src/mastra/agents/budget-request-coordinator-agent.ts
+- **Approver Logic**: ./src/mastra/agents/department-manager-agent.ts · ./src/mastra/agents/finance-manager-agent.ts
+- **Tool**: ./src/mastra/tools/budget-request-coordinator-tool.ts
+- **Workflow (concept)**: ./src/mastra/workflows/budget-request-workflow.ts
+- **Generate Endpoint (local)**: POST http://localhost:4111/api/agents/budgetRequestCoordinatorAgent/generate
+
+***
+
+## How it works
+
+The Budget Requests Coordinator Agent:
+
+- Parses natural language requests to extract amount + category indicators.
+- Applies routing thresholds:
+  - ≤ $500 or small operational keywords → auto-approved (low priority)
+  - $501 – $4,999 routine → department-manager (medium priority)
+  - ≥ $5,000 strategic/high-value → finance-manager (high priority)
+  - ≥ $10,000 or documentation keywords → requires-documentation (high priority, not yet approved)
+- Generates approval result with `routedTo`, `approved`, `priority`, `nextSteps`.
+- Appends mandatory summary line: `([routedTo] | approved: yes/no | priority: [priority])`.
+- Uses helper logic (department / finance manager agents) to simulate realistic approval timelines & responses.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>budget-requests-coordinator-agent</code>.</Step>
+  <Step title="Add environment variables">Create <code>.env</code> with <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review coordinator logic">Open <code>budget-request-coordinator-agent.ts</code> for routing rules & thresholds.</Step>
+  <Step title="Start dev server">Run <code>npx mastra dev</code> (or <code>npm run dev</code> if added).</Step>
+  <Step title="Test agent">POST to <code>/api/agents/budgetRequestCoordinatorAgent/generate</code> with a messages array.</Step>
+  <Step title="Integrate with CometChat">Expose public agent generate endpoint and register it.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - `package.json` · `tsconfig.json` · `.mastra/`
+- Agent Layer
+  - `agents/budget-request-coordinator-agent.ts`
+  - `agents/department-manager-agent.ts`
+  - `agents/finance-manager-agent.ts`
+- Tooling
+  - `tools/budget-request-coordinator-tool.ts`
+- Workflow (example scaffold)
+  - `workflows/budget-request-workflow.ts`
+- Mastra Bootstrap
+  - `src/mastra/index.ts`
+
+***
+
+## Step 1 - Coordinator Agent Essentials
+
+Ensure `budget-request-coordinator-agent.ts`:
+- Extracts amount via regex patterns (currency symbols, words like "budget of").
+- Defines keyword arrays for routing decisions (autoApprovedTypes, financeManagerTypes, documentationRequired).
+- Returns structured JSON object with `message`, `routedTo`, `approved`, `priority`, `nextSteps`.
+- Formats currency via `Intl.NumberFormat`.
+
+***
+
+## Step 2 - Routing Logic
+
+Decision order (first match wins):
+1. Auto-approve if amount ≤ 500 OR contains small-expense keywords.
+2. Requires documentation if keywords ("vendor quote", "business case", etc.) OR amount ≥ 10000.
+3. Finance manager if amount ≥ 5000 OR matches strategic keywords (equipment, capex, hiring, marketing campaign, etc.).
+4. Department manager fallback for routine operational requests.
+
+Each path sets a priority (low / medium / high) and next steps.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Dev server">Start with <code>npx mastra dev</code>.</Step>
+  <Step title="Auto-approval test">Send a $200 office supplies request.</Step>
+  <Step title="Department routing">Send a $2,500 team training request.</Step>
+  <Step title="Finance routing">Send a $15,000 equipment purchase request.</Step>
+  <Step title="Documentation required">Send a $25,000 infrastructure upgrade with vendor quotes mention.</Step>
+</Steps>
+
+Examples:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/budgetRequestCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need $200 for office supplies"}]}'
+```
+```bash
+curl -s -X POST http://localhost:4111/api/agents/budgetRequestCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need $2,500 for team training workshop"}]}'
+```
+```bash
+curl -s -X POST http://localhost:4111/api/agents/budgetRequestCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need $15,000 for new equipment purchase"}]}'
+```
+```bash
+curl -s -X POST http://localhost:4111/api/agents/budgetRequestCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need $25,000 for infrastructure upgrade with vendor quotes"}]}'
+```
+
+***
+
+## Step 4 - CometChat Configuration
+
+<Steps>
+  <Step title="Open Dashboard">Go to CometChat Dashboard → AI Agents.</Step>
+  <Step title="Add agent">Provider = Mastra, Agent ID = <code>budgetRequestCoordinatorAgent</code>.</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/budgetRequestCoordinatorAgent/generate</code>.</Step>
+  <Step title="Enable">Save & toggle Enabled.</Step>
+</Steps>
+
+> Users can now request budget approvals directly in chat (mention the agent if you add mention behavior in instructions).
+
+***
+
+## Step 5 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Select the created agent variant.</Step>
+  <Step title="Prompt tuning">Enforce summary format and ask clarifying questions for missing amount.</Step>
+  <Step title="Styling">Adjust brand colors, layout, and message bubble formatting.</Step>
+  <Step title="Preview">Test multiple request amounts + categories.</Step>
+</Steps>
+
+***
+
+## Step 6 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" href="/widget/ai-agents" description="Embed script widget" horizontal />
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" description="Prebuilt Chat Components" horizontal />
+</CardGroup>
+
+> The agent is ready once the generate endpoint is public; internal logic already structures responses.
+
+***
+
+## Step 7 - Test Your Setup
+
+<Steps>
+  <Step title="Auto-approve">Small amount returns approved + auto-approved routing.</Step>
+  <Step title="Department route">Mid-range request routes to department-manager.</Step>
+  <Step title="Finance route">High-value request hits finance-manager path.</Step>
+  <Step title="Documentation">Large or keyword-based request requires documentation.</Step>
+  <Step title="Summary suffix">Every response ends with pattern: <code>([routedTo] | approved: yes/no | priority: [priority])</code>.</Step>
+</Steps>
+
+***
+
+## Endpoint Summary
+
+- POST `/api/agents/budgetRequestCoordinatorAgent/generate` — Process budget request & return routing decision.
+
+***
+
+## Security & Production Checklist
+
+- Add authentication / authorization before exposing sensitive budget workflows.
+- Log all requests with correlation IDs (omit confidential justification details if needed).
+- Rate-limit agent endpoint to prevent abuse.
+- Externalize threshold configuration (env or DB) for dynamic policy changes.
+- Add persistence (database) for request history & audit trails.
+- Validate + sanitize user input (strip malicious characters, enforce amount bounds).
+- Add role-based responses (different detail for employees vs finance).
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| Always auto-approves | Amount not parsed | Include currency symbol or digits (e.g. $1200) |
+| Wrong routing | Keyword overlap | Refine keyword lists or adjust order in coordinator logic |
+| Missing summary suffix | Instructions altered | Reinstate instructions block ending rule |
+| Agent not found | Not registered in index | Confirm `agents: { budgetRequestCoordinatorAgent }` in `src/mastra/index.ts` |
+| OpenAI error | Invalid key / quota | Verify `OPENAI_API_KEY` in `.env` |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required for LLM responses
+PORT=4111            # If using custom server setup
+```
+
+***
+
+## Next Enhancements
+
+- Add departmental budget remaining lookups (tool integration).
+- Introduce multi-currency + exchange rate normalization.
+- Persist request ledger & expose reporting endpoints.
+- Add SLA timers + escalation notifications.
+- Integrate cost center validation + forecast impact analysis.
+- Introduce mention-only triggering (e.g. respond only if `@budget`).
+
+***
+
+## Summary
+
+You now have a Budget Requests Coordinator Agent that converts free-form employee requests into structured routing decisions with clear approval context. Extend it by adding persistence, notifications, and richer financial policy integrations while keeping consistent summary formatting for downstream parsing.
+

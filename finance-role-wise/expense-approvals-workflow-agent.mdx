@@ -1,0 +1,276 @@
+# Build Your Expense Approvals Workflow Agent with Mastra
+
+> Create a Mastra workflow + (optional) conversational agents that automate expense report submission, policy validation, multi-level approval, and payment processing — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- REST workflow for expense approvals: submit → validate → approve → pay → status → list.
+- Zod-enforced financial domain schemas (expense items, reports, workflows).
+- (Optional) Chat agents to guide employees and approvers (e.g., `expense-approval-assistant`, `finance-approver`).
+- Integration path for CometChat so users can ask: “@expense help me submit an expense”.
+
+***
+
+## Prerequisites
+
+- Existing Mastra project or this example folder.
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY` if you add AI agents.
+- (Optional) CometChat app for chat integration.
+
+***
+
+## Quick links
+
+- **Project README**: ./README.md
+- **Swagger UI (local)**: http://localhost:4111/swagger-ui (when running with Mastra dev server)
+- **Environment variables**: See README → Environment Variables
+
+***
+
+## How it works
+
+This example focuses on a workflow-centric implementation using explicit HTTP endpoints (in-memory storage for demo):
+
+- Submission: Creates an expense report + workflow record.
+- Validation: Performs basic policy checks (amount limits, receipts).
+- Approval: Enforces staged routing (manager → finance → admin) based on thresholds.
+- Payment: Marks approved reports as paid and generates a mock transaction.
+- Status & Listing: Query progress, violations, approvals, payment details.
+
+Key components:
+- Types & Schemas: `src/types/expense.ts`
+- Route Handlers: `src/mastra/server/routes/expense-approval.ts`
+- Route Registration: `src/mastra/server/routes.ts`
+- Mastra Server Config: `src/mastra/index.ts`
+- Standalone Express Entrypoint: `server.ts` (alternative to Mastra server)
+- Safe Error Utility: `src/mastra/server/util/safeErrorMessage.ts`
+
+Add optional conversational agents (not included yet) under `src/mastra/agents/` to:
+- Guide users through forming proper expense reports.
+- Summarize violations and recommend corrections.
+- Provide approval rationale to managers/finance.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>expense-approvals-workflow-agent</code>.</Step>
+  <Step title="Add environment variables">Create <code>.env</code> with <code>OPENAI_API_KEY</code> if adding AI agent logic.</Step>
+  <Step title="Review schemas">Open <code>src/types/expense.ts</code> for validation & workflow status enums.</Step>
+  <Step title="Start dev server">Use <code>npm run dev</code> (Mastra) or <code>npm run build && node dist/server.js</code> after adjusting build output if using the Express entry.</Step>
+  <Step title="Explore API">Visit <code>/swagger-ui</code> (Mastra dev) or use curl examples below.</Step>
+  <Step title="(Optional) Add chat agents">Implement agents in <code>src/mastra/agents/</code> and register them in <code>src/mastra/index.ts</code>.</Step>
+  <Step title="Integrate with CometChat">Expose public URL of <code>/api/agents/expense-approval-assistant/generate</code> (if created).</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+Core files and directories:
+
+- Runtime & Config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+  - `server.ts` (Express alternative)
+- Workflow Logic
+  - `src/mastra/server/routes/expense-approval.ts`
+  - `src/mastra/server/routes.ts`
+  - `src/mastra/server/util/safeErrorMessage.ts`
+- Mastra Bootstrap
+  - `src/mastra/index.ts`
+- Domain Types
+  - `src/types/expense.ts`
+- (Future) Agents
+  - `src/mastra/agents/` (create e.g. `expense-approval-assistant.ts`)
+
+***
+
+## Step 1 - (Optional) Create a Chat Agent
+
+Add `src/mastra/agents/expense-approval-assistant.ts` with:
+- name: `expense-approval-assistant`
+- behavior: only respond when explicitly mentioned (`@expense`)
+- capabilities: summarize current report status, highlight missing receipts, predict required approvers.
+- tools (future): wrapper calls to backend endpoints for status lookup & validation re-run.
+
+Register in `src/mastra/index.ts` so the path becomes `/api/agents/expense-approval-assistant/generate`.
+
+***
+
+## Step 2 - Understand Threshold Logic
+
+Approval thresholds (implemented in route logic):
+- ≤ $50 → Potential auto-approval (if policy clean)
+- $51–$1,000 → Manager required
+- $1,001–$5,000 → Manager + Finance
+- > $5,000 → Manager + Finance + Admin
+
+Receipt requirement: any expense > $25 must include `receiptUrl`. Violations are collected during validation.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Dev (Mastra)">Run <code>npm run dev</code> to start Mastra server (gives Swagger UI).</Step>
+  <Step title="Dev (Express)">Run <code>npm run dev</code> if you convert <code>server.ts</code> to ts-node/tsx workflow or build then <code>node dist/server.js</code>.</Step>
+  <Step title="Submit report">POST to <code>/api/expenses/submit</code>.</Step>
+  <Step title="Validate">POST to <code>/api/expenses/:reportId/validate</code>.</Step>
+  <Step title="Approve">POST staged approvals to <code>/api/expenses/:reportId/approve</code>.</Step>
+  <Step title="Pay">POST to <code>/api/expenses/:reportId/pay</code> after approval.</Step>
+  <Step title="Check status">GET <code>/api/expenses/:reportId/status</code>.</Step>
+  <Step title="List reports">GET <code>/api/expenses</code>.</Step>
+</Steps>
+
+API endpoints:
+- POST `/api/expenses/submit` — create expense report
+- POST `/api/expenses/:reportId/validate` — policy validation
+- POST `/api/expenses/:reportId/approve` — approval action
+- POST `/api/expenses/:reportId/pay` — payment processing
+- GET `/api/expenses/:reportId/status` — status & progress
+- GET `/api/expenses` — list reports (filter by `status`, `employeeId`)
+
+***
+
+## Step 4 - Add to CometChat (If Using Chat Agent)
+
+<Steps>
+  <Step title="Dashboard">Open CometChat Dashboard → AI Agents.</Step>
+  <Step title="Create agent">Provider = Mastra, Agent ID = <code>expense-approval-assistant</code>.</Step>
+  <Step title="Deployment URL">Point to public <code>/api/agents/expense-approval-assistant/generate</code>.</Step>
+  <Step title="Enable">Save + toggle Enabled.</Step>
+</Steps>
+
+> If you haven’t created the agent file yet, do that first—routes alone won’t appear as a chat agent.
+
+***
+
+## Step 5 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Enter Chat Builder from the agent entry.</Step>
+  <Step title="Attach agent">Ensure the Mastra expense assistant is attached.</Step>
+  <Step title="Tune prompts">Add guidance: "Provide concise compliance-focused responses."</Step>
+  <Step title="Preview">Validate multi-step interactions (mention agent with <code>@expense</code>).</Step>
+</Steps>
+
+***
+
+## Step 6 - Integrate
+
+<CardGroup>
+  <Card title="No Code Widget" href="/widget/ai-agents" description="Embed script for quick testing" horizontal />
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" description="Prebuilt chat components" horizontal />
+</CardGroup>
+
+***
+
+## Step 7 - Test Your Setup
+
+<Steps>
+  <Step title="Submit">Expense report submission returns IDs.</Step>
+  <Step title="Validate">Violations array appears when receipts missing or limits exceeded.</Step>
+  <Step title="Approve chain">Manager then finance then admin transitions statuses correctly.</Step>
+  <Step title="Payment">Pay endpoint marks workflow as paid.</Step>
+  <Step title="List">Listing endpoint shows accurate status snapshots.</Step>
+  <Step title="(Chat) Agent">Agent responds when mentioned with context (if implemented).</Step>
+</Steps>
+
+```bash
+# Submit an expense report
+curl -X POST http://localhost:4111/api/expenses/submit \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "Conference Travel",
+    "employeeId": "550e8400-e29b-41d4-a716-446655440000",
+    "employeeInfo": {"name": "Alex Lee","email": "alex.lee@company.com","department": "Marketing"},
+    "expenses": [{
+      "id": "11111111-1111-1111-1111-111111111111",
+      "category": "travel",
+      "description": "Flight",
+      "amount": 420,
+      "currency": "USD",
+      "date": "2025-01-05",
+      "merchant": "Airline Corp",
+      "receiptUrl": "https://example.com/r1.jpg"
+    }],
+    "totalAmount": 420,
+    "businessPurpose": "Annual industry conference"
+  }'
+```
+
+```bash
+# Validate
+curl -X POST http://localhost:4111/api/expenses/REPORT_ID/validate
+```
+
+```bash
+# Manager approval
+curl -X POST http://localhost:4111/api/expenses/REPORT_ID/approve \
+  -H 'Content-Type: application/json' \
+  -d '{"approverRole":"manager","approverId":"mgr-123","action":"approve"}'
+```
+
+```bash
+# Payment
+curl -X POST http://localhost:4111/api/expenses/REPORT_ID/pay \
+  -H 'Content-Type: application/json' \
+  -d '{"paymentMethod":"direct_deposit"}'
+```
+
+***
+
+## Security & Production Checklist
+
+- Protect routes with auth (API key / OAuth / JWT) & limit origins (CORS).
+- Replace in-memory Map with persistent DB (Postgres, etc.).
+- Add idempotency for payment endpoint.
+- Log audit trail: who approved, when, what changed.
+- Mask PII in logs (emails, vendor details if sensitive).
+- Enforce rate limiting + body size limits.
+- Add schema validation at all boundaries (already using Zod for core objects).
+- Consider background jobs for heavy OCR / compliance tasks.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| 404 reportId | Wrong ID | Use ID from submit response |
+| Validation empty violations but should flag | Missing receiptUrl threshold misunderstood | Ensure amount > 25 and no receipt triggers violation |
+| Payment rejected | Status not approved | Complete all required approvals first |
+| Agent not found | No agent file registered | Create agent file + register in Mastra config |
+| Swagger missing | Not running via Mastra dev | Use `npm run dev` instead of raw Express |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""    # Required only if adding AI agents
+PORT=4111             # Server port (Mastra or Express)
+```
+
+***
+
+## Next Enhancements
+
+- Add OCR receipt processing tool + duplicate detection.
+- Implement budget category dynamic limits (store in DB).
+- Integrate real payment gateway sandbox.
+- Add Webhook notifications for status transitions.
+- Create chat agent with retrieval of expense policy docs.
+
+***
+
+## Summary
+
+You now have a fully functioning expense approval workflow with clear extension points for AI guidance, richer policy enforcement, and chat integration. Add agents when you need conversational support; keep core workflow deterministic and auditable.
+

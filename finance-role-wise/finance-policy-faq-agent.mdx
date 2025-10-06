@@ -1,0 +1,249 @@
+# Build Your Finance Policy & Billing Operations Agent with Mastra
+
+> Create a Mastra agent that answers finance policy FAQs using an internal knowledge base and performs simulated billing operations (invoices, payments, subscriptions, expenses) — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A single Mastra agent (`finance-policy`) combining document retrieval + billing tools.
+- Retrieval over Markdown finance policy documents (`knowledge/finance/*.md`).
+- Tool-driven operations: generate invoices, process payments, manage subscriptions, track expenses.
+- Explicit citation of sources for every policy answer.
+- Optional CometChat integration for in‑chat finance help.
+
+***
+
+## Prerequisites
+
+- Mastra project environment (this folder works standalone).
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) CometChat app for chat integration.
+
+***
+
+## Quick links
+
+- **Project README**: ./README.md
+- **Knowledge Base**: ./knowledge/finance/finance-policies-procedures.md
+- **Agent**: ./src/mastra/agents/finance-policy-agent.ts
+- **Tools**: ./src/mastra/tools/billing-api-tools.ts · ./src/mastra/tools/docs-retriever.ts
+- **Mastra Config**: ./src/mastra/index.ts (registers `finance-policy` agent)
+- **Endpoint (local)**: `POST http://localhost:4111/api/agents/finance-policy/generate`
+
+***
+
+## How it works
+
+The Finance Policy Agent orchestrates two capability lanes:
+
+1. Policy Q&A
+   - Parses user intent → decides it is informational.
+   - Uses `docs-retriever` to semantically search Markdown policies.
+   - Synthesizes answer + includes citation list (filenames / sections).
+2. Billing Operations
+   - Detects action verbs ("generate invoice", "process payment", "create subscription", "add expense").
+   - Invokes billing tools in `billing-api-tools.ts` to simulate structured finance operations.
+   - Returns JSON-like structured summaries + confirmations + disclaimers.
+
+Error handling: agent ensures professional tone, adds finance disclaimer, and never fabricates dollar amounts without indicating assumption when inputs are ambiguous.
+
+Key components:
+- Agent definition: `finance-policy-agent.ts`
+- Tools: `billing-api-tools.ts`, `docs-retriever.ts` (exported via `tools/index.ts`)
+- Registration: `src/mastra/index.ts` exports `mastra` with agents `{ 'finance-policy': financePolicyAgent }`
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> in <code>finance-policy-faq-agent</code>.</Step>
+  <Step title="Add .env">Create <code>.env</code> with <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review knowledge base">Open <code>knowledge/finance/finance-policies-procedures.md</code>; add more docs as needed.</Step>
+  <Step title="Start dev server">Run <code>npx mastra dev</code> (or <code>npm run dev</code> if script added).</Step>
+  <Step title="Test agent">POST to <code>/api/agents/finance-policy/generate</code> with a messages array.</Step>
+  <Step title="(Optional) Extend tools">Modify <code>billing-api-tools.ts</code> to add VAT, discounts, GL posting.</Step>
+  <Step title="Connect to CometChat">Register public generate endpoint under AI Agents.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - `package.json`, `tsconfig.json`, `.mastra/*`
+- Knowledge
+  - `knowledge/finance/finance-policies-procedures.md`
+- Agent & Tools
+  - `src/mastra/agents/finance-policy-agent.ts`
+  - `src/mastra/tools/docs-retriever.ts`
+  - `src/mastra/tools/billing-api-tools.ts`
+  - `src/mastra/tools/index.ts`
+- Mastra Bootstrap
+  - `src/mastra/index.ts`
+
+***
+
+## Step 1 - Define / Review the Agent
+
+Ensure `finance-policy-agent.ts`:
+- Sets `name: 'finance-policy'` → endpoint `/api/agents/finance-policy/generate`.
+- Implements intent routing (policy vs billing vs expense tracking).
+- Always appends a short disclaimer for financial guidance.
+- Returns citations for policy answers (filenames / sections).
+
+***
+
+## Step 2 - Add / Maintain Policy Docs
+
+Add Markdown files under `knowledge/finance/`:
+- Use clear headings (## Expenses, ## Invoices, ## Subscriptions, etc.).
+- Keep limits & thresholds explicit (e.g., "Meal reimbursement limit: $75 domestic / $100 international").
+- Re-run queries; retriever indexes on server start.
+
+***
+
+## Step 3 - Billing Tools Overview
+
+Core operations in `billing-api-tools.ts` (extend as needed):
+- Invoice creation (line items, subtotal, tax, total, due date, status draft).
+- Payment processing (method, fees, net amount, confirmation id, updated invoice status).
+- Subscription management (plan, interval, next billing date, status lifecycle).
+- Expense tracking (category, amount, vendor, date, reporting aggregation).
+
+Add new helpers (e.g., credit memo, refund, aging report) by exporting functions and referencing them in the agent tool list.
+
+***
+
+## Step 4 - Run Locally
+
+<Steps>
+  <Step title="Start server"><code>npx mastra dev</code></Step>
+  <Step title="Ask policy question">POST meal limit question to generate endpoint.</Step>
+  <Step title="Generate invoice">Send invoice creation prompt with client + items.</Step>
+  <Step title="Process payment">Prompt for payment referencing invoice number.</Step>
+  <Step title="Create subscription">Request recurring plan for a customer.</Step>
+  <Step title="Track expense">Add an expense entry for reporting test.</Step>
+</Steps>
+
+Example (Policy):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/finance-policy/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"What are meal reimbursement limits?"}]}'
+```
+
+Example (Invoice):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/finance-policy/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Generate an invoice for ACME: consulting 12h @ $250, platform license $1200"}]}'
+```
+
+***
+
+## Step 5 - Configure in CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Go to CometChat Dashboard → AI Agents.</Step>
+  <Step title="Add agent">Provider = Mastra, Agent ID = <code>finance-policy</code>.</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/finance-policy/generate</code>.</Step>
+  <Step title="Enable">Save & toggle Enabled.</Step>
+</Steps>
+
+> After enabling, end‑users can query finance policies or ask for invoice operations directly in chat.
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Select variant">Open the created agent variant.</Step>
+  <Step title="Prompt tuning">Add system guidance: "Always cite sources and include disclaimer."</Step>
+  <Step title="Interface settings">Adjust brand theme, layout, and message formatting.</Step>
+  <Step title="Preview">Validate both policy retrieval and billing operations.</Step>
+</Steps>
+
+***
+
+## Step 7 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" href="/widget/ai-agents" description="Embed script widget" horizontal />
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" description="Prebuilt Chat Components" horizontal />
+</CardGroup>
+
+> The `finance-policy` agent is exportable with the config; no extra client code required for basic Q&A.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Policy retrieval">Returns limits + citation list.</Step>
+  <Step title="Invoice generation">Outputs structured invoice JSON fields.</Step>
+  <Step title="Payment processing">Includes payment id, fees, net amount.</Step>
+  <Step title="Subscription creation">Returns next billing date & status.</Step>
+  <Step title="Expense tracking">Stores categorized expense entry.</Step>
+  <Step title="Disclaimer present">All responses end with finance disclaimer.</Step>
+</Steps>
+
+***
+
+## Endpoint Summary
+
+- POST `/api/agents/finance-policy/generate` — Unified policy + billing operations.
+
+(If you add more agents, they appear under `/api/agents/<agent-name>/generate`).
+
+***
+
+## Security & Production Checklist
+
+- Add authentication (API key/JWT) before exposing billing operations.
+- Sanitize and validate user prompts to avoid injection into tool calls.
+- Persist invoices / payments / subscriptions in a database (currently in-memory or simulated).
+- Add rate limiting & request body size caps.
+- Log operations with correlation IDs; exclude sensitive PII from logs.
+- Version knowledge base docs; rebuild embeddings on material change.
+- Implement idempotency keys for payment-like operations.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| No citations returned | Retriever mis-routed | Confirm docs exist & restart server |
+| Tool not triggered | Intent phrase unclear | Add trigger keywords to agent logic |
+| Duplicate invoice numbers | Non-unique generator | Add UUID suffix or DB sequence |
+| Payment fee seems off | Static fee logic demo | Adjust fee calc in billing tool |
+| Long response latency | Model / network delay | Cache doc embeddings & shorten prompts |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required for LLM responses
+PORT=4111            # (If server option is added)
+```
+
+***
+
+## Next Enhancements
+
+- Embed store (vector DB) for scalable policy retrieval.
+- Fine-grained RBAC: restrict payment tools to finance roles.
+- Add refund / credit memo operations.
+- Add tax jurisdiction logic & multi-currency support.
+- Export reports: AR aging, MRR, expense category summaries.
+
+***
+
+## Summary
+
+You now have a unified Finance Policy & Billing Operations Agent leveraging document retrieval and operational tooling. Extend by adding persistence, richer compliance checks, and role-based access while keeping responses transparent with citations and disclaimers.
+
