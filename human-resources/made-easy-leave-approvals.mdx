@@ -1,0 +1,213 @@
+# Build Your Easy Leave Approval Coordinator Agent with Mastra
+
+> Create a Mastra agent that delivers a delightful, fast, and intelligent leave approval experience: auto‑approves simple requests, routes standard leave to managers, escalates formal leave to HR policy handlers, requests documentation when needed — then integrate it into CometChat.
+
+***
+
+## What You’ll Build
+
+- **Coordinator agent** that processes employee leave requests end‑to‑end
+- Smart **auto‑routing**: auto-approved | direct-manager | hr-manager | requires-documentation
+- A unified **processing tool**: `easyLeaveApprovalCoordinator`
+- Emoji‑enhanced, employee‑friendly messaging with actionable next steps
+- CometChat AI Agent integration for in‑chat leave submission
+
+***
+
+## Prerequisites
+
+- Mastra project (or this example folder)
+- Node.js 20+ (18+ minimum, 20 recommended)
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat application
+
+***
+
+## Quick Links
+
+- **Project README**: [README.md](./README.md)
+- **Primary Endpoint (local)**: `POST http://localhost:4111/api/agents/easyLeaveApprovalCoordinatorAgent/generate`
+- **Coordinator Tool**: `src/mastra/tools/easy-leave-approval-coordinator-tool.ts`
+- **Agents**: `src/mastra/agents/*`
+
+***
+
+## How it Works
+
+1. Employee sends a natural language leave request.
+2. Coordinator agent invokes the `easyLeaveApprovalCoordinator` tool.
+3. Tool classifies request type and determines routing tier & priority.
+4. If eligible → instant auto approval (short / appointment).
+5. Otherwise → routed to manager or HR; or flagged for documentation.
+6. Response returns: message, approval state, routing tier, next steps, tips, and summary tuple: `([routedTo] | approved: yes/no | priority: [priority])`.
+
+Key components:
+- **Agent**: Easy Leave Approval Coordinator (registered in `src/mastra/index.ts`)
+- **Helper Agents**: quick-approval-manager, team-manager, hr-policy-manager (logic encapsulated inside tool)
+- **Tool**: `easyLeaveApprovalCoordinatorTool` (routing + response synthesis)
+
+***
+
+## Routing Tiers & Logic
+
+| Routed To | Purpose | Typical Requests | Priority |
+|-----------|---------|------------------|----------|
+| auto-approved | Instant pass | Dentist, doctor, vaccination, few hours, half day | low |
+| direct-manager | Standard scheduling & coverage | Vacation, personal, mental health, sick | medium |
+| hr-manager | Formal / policy-governed leave | Maternity, bereavement, disability, extended, FMLA | high |
+| requires-documentation | Needs verification before approval | Surgery, medical certificate, court, emergency | high |
+
+Detection uses keyword arrays inside the tool; first matching category determines routing.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install deps">In folder: <code>npm install</code></Step>
+  <Step title="Env vars">Create <code>.env</code> → <code>OPENAI_API_KEY=...</code></Step>
+  <Step title="Run dev server"><code>npx mastra dev</code> (defaults to :4111)</Step>
+  <Step title="Send sample request">POST dental / vacation / maternity scenarios (see below)</Step>
+  <Step title="Inspect output">Confirm tuple: <code>([routedTo] | approved: yes/no | priority: [priority])</code></Step>
+  <Step title="Integrate CometChat">Register public generate endpoint</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+made-easy-leave-approvals/
+├─ src/mastra/
+│  ├─ index.ts                       # Mastra registration
+│  ├─ agents/
+│  │  ├─ easy-leave-approval-coordinator-agent.ts
+│  │  ├─ quick-approval-manager-agent.ts
+│  │  ├─ team-manager-agent.ts
+│  │  └─ hr-policy-manager-agent.ts
+│  ├─ tools/
+│  │  └─ easy-leave-approval-coordinator-tool.ts
+│  └─ workflows/
+│     └─ easy-leave-approval-workflow.ts
+└─ README.md
+```
+
+***
+
+## Sample cURL Requests
+
+Auto-approval (appointment):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/easyLeaveApprovalCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Need a dentist appointment tomorrow morning"}]}'
+```
+
+Standard vacation:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/easyLeaveApprovalCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Vacation from Dec 20 to Dec 27"}]}'
+```
+
+Formal leave (maternity):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/easyLeaveApprovalCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need maternity leave starting March"}]}'
+```
+
+Documentation required:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/easyLeaveApprovalCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I require medical leave for surgery with a doctor note"}]}'
+```
+
+***
+
+## CometChat Integration
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat</a>.</Step>
+  <Step title="Add AI Agent">Provider=<b>Mastra</b>, Agent ID=<code>easyLeaveApprovalCoordinatorAgent</code>.</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/easyLeaveApprovalCoordinatorAgent/generate</code>.</Step>
+  <Step title="Test">Submit a quick appointment & verify instant approval.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" icon={<img src="/docs/images/icons/react.svg" alt="React" />}>Pre-built Components</Card>
+  <Card title="Widget" href="/widget/ai-agents" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />}>Drop-in Chat</Card>
+</CardGroup>
+
+***
+
+## Testing Checklist
+
+<Steps>
+  <Step title="Auto-approved path">Appointment returns routedTo=auto-approved & approved=true.</Step>
+  <Step title="Manager path">Vacation returns routedTo=direct-manager.</Step>
+  <Step title="HR path">Maternity returns routedTo=hr-manager & priority=high.</Step>
+  <Step title="Documentation path">Surgery note returns requires-documentation & approved=false.</Step>
+  <Step title="Tuple present">Final line matches pattern.</Step>
+</Steps>
+
+***
+
+## Security & Production Hardening
+
+- Add auth (API key/JWT) to generate endpoint
+- Rate limit to prevent abuse of automated approvals
+- Persist leave requests in database (replace ephemeral logic)
+- Centralize keywords in config or DB for dynamic policy updates
+- Add audit logging (who requested, classification, approver routing)
+- Validate and sanitize user inputs before classification
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| All requests route to manager | Keyword arrays missing | Confirm quick & HR lists in tool file |
+| No summary tuple | Agent instructions changed | Reapply ending instruction line |
+| Emojis not rendering | Client font / fallback issue | Use standard Unicode set |
+| Slow responses | Model latency | Consider smaller model (e.g. gpt-4o-mini) |
+| Missing approval fields | Tool output schema mismatch | Sync tool output & agent expectations |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required
+PORT=4111            # If server wrapper used
+LOG_LEVEL=info       # Optional
+```
+
+***
+
+## Extending
+
+- Add calendar integration (auto block approved dates)
+- Introduce policy conflict detection (overlapping team PTO)
+- Add HR dashboard summarizing routing volumes & approval SLAs
+- Provide multi-lingual support (pre-translate request → classify)
+- Integrate Slack/Teams slash command for rapid leave submission
+
+***
+
+## Reference Prompts
+
+```text
+I need a few hours off for a vaccination tomorrow.
+```
+```text
+I would like bereavement leave for a family loss starting Monday.
+```
+```text
+Need unpaid extended leave for personal medical recovery in June.
+```
+
+> Make time off feel effortless. Provide clarity, warmth, and instant guidance.
+

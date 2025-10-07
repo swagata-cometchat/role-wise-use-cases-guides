@@ -1,0 +1,239 @@
+# Build Your HR Policies FAQ Agent with Mastra
+
+> Create a Mastra agent that delivers fast, structured, employee‑friendly answers to common HR policy questions using an internal FAQ knowledge base — then connect it to CometChat for real‑time self‑service.
+
+***
+
+## What You’ll Build
+
+- **HR Policy FAQ Agent** (`hr-policy-faq`) that parses employee questions and retrieves relevant policy snippets.
+- A **retrieval tool** (`faqRetriever`) with category-aware matching (vacation, benefits, leave, remote work, procedures, general policies).
+- Structured answer formatting (Answer → Details → Next Steps → Note → Sources).
+- CometChat AI Agent integration for in‑app policy assistance.
+
+***
+
+## Prerequisites
+
+- Mastra project (or this example folder)
+- Node.js 18+ (20+ recommended)
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- HR policy markdown files in `knowledge/hr/`
+- (Optional) CometChat app for chat integration
+
+***
+
+## Quick Links
+
+- **Project README**: [README.md](./README.md)
+- **Primary Endpoint (local)**: `POST http://localhost:4111/api/agents/hr-policy-faq/generate`
+- **Agent Definition**: `src/mastra/agents/hr-policy-faq-agent.ts`
+- **Retriever Tool**: `src/mastra/tools/faq-retriever.ts`
+- **Knowledge Base**: `knowledge/hr/*`
+
+***
+
+## How it Works
+
+1. Employee asks a natural language question.
+2. Agent invokes `faqRetriever` (namespace: `hr`) to score & fetch relevant policy documents.
+3. Retrieved snippets + filenames inform the composed structured answer.
+4. Agent formats response with mandated disclaimer & source list.
+5. Response returned via `/api/agents/hr-policy-faq/generate` (ready for chat embedding or API consumption).
+
+Key components:
+- Agent instructions enforce: always call tool first, structured output, disclaimer.
+- Tool implements: category regex detection, relevance scoring, doc filtering.
+- Knowledge base: curated markdown FAQ documents.
+
+***
+
+## Response Structure
+
+```
+**Answer:** Direct concise answer
+
+**Details:** Bullets or short paragraphs expanding policy points
+
+**Next Steps:** Practical employee action (portal link, contact HR, etc.)
+
+**Note:** Standard disclaimer
+
+**Sources:** file1.md, file2.md
+```
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>HR-policies-faq-agent</code>.</Step>
+  <Step title="Add .env">Create <code>.env</code> with <code>OPENAI_API_KEY=...</code>.</Step>
+  <Step title="Verify knowledge base">Ensure markdown files exist under <code>knowledge/hr/</code>.</Step>
+  <Step title="Review agent">Open <code>hr-policy-faq-agent.ts</code>; confirm instructions & tool mapping.</Step>
+  <Step title="Run dev server">Start with <code>npx mastra dev</code> (or <code>npm run dev</code> if configured).</Step>
+  <Step title="Issue test query">POST vacation / benefits / leave question to the generate endpoint.</Step>
+  <Step title="Integrate CometChat">Register agent with its public generate URL.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+HR-policies-faq-agent/
+├─ knowledge/hr/
+│  ├─ company-leave-policies.md
+│  ├─ employee-benefits-guide.md
+│  └─ general-hr-policies-faq.md
+├─ src/mastra/
+│  ├─ index.ts
+│  ├─ agents/
+│  │  └─ hr-policy-faq-agent.ts
+│  └─ tools/
+│     ├─ faq-retriever.ts
+│     └─ index.ts
+├─ package.json
+├─ tsconfig.json
+└─ guides.mdx (this guide)
+```
+
+***
+
+## Agent Essentials
+
+| Element | Value |
+|---------|-------|
+| Agent ID | `hr-policy-faq` |
+| Endpoint | `/api/agents/hr-policy-faq/generate` |
+| Tool | `faqRetriever` |
+| Namespace | `hr` |
+| Output Style | Structured FAQ (Answer / Details / Next Steps / Note / Sources) |
+| Disclaimer | Always appended in **Note** section |
+
+***
+
+## Step 1 – Ask a Question
+
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hr-policy-faq/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"How much PTO do I get?"}]}'
+```
+
+***
+
+## Step 2 – Benefits Example
+
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hr-policy-faq/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"When does my health insurance start?"}]}'
+```
+
+***
+
+## Step 3 – Leave Policy Example
+
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hr-policy-faq/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Do I qualify for FMLA?"}]}'
+```
+
+***
+
+## Step 4 – Remote Work Example
+
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hr-policy-faq/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Can I work remotely on Fridays?"}]}'
+```
+
+***
+
+## CometChat Integration
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Add AI Agent">Provider=<b>Mastra</b>, Agent ID=<code>hr-policy-faq</code>.</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/hr-policy-faq/generate</code>.</Step>
+  <Step title="Test in chat">Ask: "How do I request sick leave?" Validate structured sections + Sources.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" icon={<img src="/docs/images/icons/react.svg" alt="React" />}>Pre-built UI</Card>
+  <Card title="Widget" href="/widget/ai-agents" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />}>Embed Fast</Card>
+</CardGroup>
+
+***
+
+## Testing Checklist
+
+<Steps>
+  <Step title="Tool invoked first">Logs show `faqRetriever` before answer text.</Step>
+  <Step title="Category detection">Vacation, benefits, leave queries return relevant details.</Step>
+  <Step title="Disclaimer present">Each answer includes the standard policy variance disclaimer.</Step>
+  <Step title="Sources listed">Only knowledge file basenames (no paths).</Step>
+  <Step title="Graceful fallback">Unknown question directs user to contact HR.</Step>
+</Steps>
+
+***
+
+## Security & Compliance
+
+- Prefer read‑only container for knowledge files.
+- Version policy docs; include effective dates inside documents.
+- Log question & doc match metadata (avoid logging sensitive free text if privacy constraints apply).
+- Rate limit / throttle to prevent enumeration of private policies.
+- Validate tool outputs (no hallucinated files).
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Empty answer | No matching docs | Add / update markdown; re-run query |
+| Missing disclaimer | Instructions modified | Restore agent instructions block |
+| Incorrect category | Regex patterns incomplete | Extend patterns in `faq-retriever.ts` |
+| Slow responses | Large doc set unoptimized | Pre-index / shard knowledge base |
+| Sources path shows | Using full path | Strip to basename before rendering |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required for model
+PORT=4111            # (If server layer added)
+LOG_LEVEL=info       # Optional logging verbosity
+```
+
+***
+
+## Extending
+
+- Add embeddings + vector search for semantic fallback.
+- Introduce doc version & effective date tagging in responses.
+- Add multi-language translation layer (tool pre/post processing).
+- Cache frequent FAQ answers (24h TTL) to reduce token usage.
+- Add analytics endpoint summarizing top queried categories.
+
+***
+
+## Reference Prompts
+
+```text
+What holidays do we get off each year?
+```
+```text
+Explain our parental leave policy and how to apply.
+```
+```text
+Who do I contact about updating my benefits after a life event?
+```
+
+> Always prioritize accuracy and clarity; escalate sensitive or ambiguous issues to HR directly.
+

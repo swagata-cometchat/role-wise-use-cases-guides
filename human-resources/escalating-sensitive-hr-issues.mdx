@@ -1,0 +1,228 @@
+# Build Your Sensitive HR Issue Escalation Agent with Mastra
+
+> Create a Mastra agent that ingests, classifies, and escalates sensitive workplace HR issues; routes them to the right handling tier; provides structured guidance; and outputs a machine‑parsable footer for downstream automation — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Escalation coordinator agent** that performs intake, triage, routing, and guidance.
+- Optional supporting agents (generalist, specialist, emergency, human rep) for multi‑agent separation of concerns.
+- **Escalation analysis tool** (`hrEscalationCheckerTool`) that returns routing & urgency signals.
+- A consistent **machine footer contract** for system integration.
+- CometChat AI Agent integration for in‑chat escalation triage.
+
+***
+
+## Prerequisites
+
+- Mastra project (`npx create-mastra@latest my-hr-escalations`)
+- Node.js 18+
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat application
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Primary Agent Endpoint (local)**: `POST http://localhost:4111/api/agents/hrEscalationCoordinatorAgent/generate`
+- **Environment Variables**: See README → Environment
+
+***
+
+## How it works
+
+The escalation workflow:
+1. User submits a narrative HR concern.
+2. Coordinator agent calls the **escalation-checker tool** with full text.
+3. Tool classifies: category, escalation level, urgency, routed target.
+4. Agent returns human‑readable summary + actionable guidance.
+5. Response ends with strict JSON footer:
+   `FOOTER: {"routedTo":"<level>","urgency":"<level>","escalated":true|false}`
+
+Key components:
+- Coordinator Agent: `src/mastra/agents/hr-escalation-coordinator-agent.ts`
+- Escalation Logic / Tool: `src/mastra/tools/escalation-checker-tool.ts`
+- Optional Agents: (generalist / specialist / emergency / human rep) in `src/mastra/agents/*`
+- Registration: `src/mastra/index.ts`
+
+Routing tiers: `generalist | specialist | emergency | human`
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install & configure">Run <code>npm install</code>; add <code>OPENAI_API_KEY</code> in <code>.env</code>.</Step>
+  <Step title="Review coordinator agent">Confirm instructions enforce the machine footer and emergency banner logic.</Step>
+  <Step title="Tool integration">Ensure <code>hrEscalationCheckerTool</code> is registered in the coordinator agent's <code>tools</code> map.</Step>
+  <Step title="Run locally">Start dev server: <code>npm run dev</code> (default port :4111).</Step>
+  <Step title="Test classification">POST a few scenarios (harassment, benefits question, termination) and inspect footer JSON.</Step>
+  <Step title="Integrate with CometChat">Register the agent (Provider=Mastra) using the generate endpoint URL.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+escalating-sensitive-hr-issues/
+├─ src/mastra/
+│  ├─ index.ts
+│  ├─ agents/
+│  │  ├─ hr-escalation-coordinator-agent.ts
+│  │  ├─ hr-escalation-checker-agent.ts (logic helper)
+│  │  ├─ hr-generalist-agent.ts
+│  │  ├─ hr-specialist-agent.ts
+│  │  ├─ emergency-hr-agent.ts
+│  │  └─ hr-human-rep-agent.ts
+│  └─ tools/
+│     └─ escalation-checker-tool.ts
+└─ tests/
+   └─ sample-escalation.ts
+```
+
+***
+
+## Machine Footer Contract
+
+Every response MUST terminate with (no extra text after line):
+```
+FOOTER: {"routedTo":"generalist|specialist|emergency|human","urgency":"low|medium|high|critical","escalated":true|false}
+```
+Parsing tips:
+- Trim trailing whitespace; isolate the substring after `FOOTER: ` then JSON parse.
+- Reject responses without all three keys.
+
+***
+
+## Step 1 – Coordinator Agent Behavior
+
+Requirements:
+- Emergency scenarios prepend: <code>***CRITICAL HR ESCALATION REQUIRED***</code>
+- Summarize issue (2–3 sentences), then structured fields (Routed To / Escalation Status / Urgency / Recommended Action)
+- Bullet next steps + confidentiality reminder
+- Enforce exact footer format
+
+***
+
+## Step 2 – Register Agents in Mastra
+
+Add to Mastra config (base project already shows registration in <code>src/mastra/index.ts</code>):
+- Ensure <code>hrEscalationCoordinatorAgent</code> is exported & passed to new <code>Mastra({ agents: { ... } })</code>
+- To enable auxiliary agents, import and include them similarly
+
+***
+
+## Step 3 – Run & Test
+
+<Steps>
+  <Step title="Start server"><code>npm run dev</code></Step>
+  <Step title="General inquiry">Post a low urgency scenario → expect routedTo=generalist.</Step>
+  <Step title="Specialist case">Include terms like "termination" or "investigation" → specialist routing.</Step>
+  <Step title="Emergency">Include threats / violence keywords → emergency routing + banner.</Step>
+  <Step title="Human rep request">Phrase as a private interpersonal concern → routedTo=human.</Step>
+</Steps>
+
+Sample cURL (general inquiry):
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hrEscalationCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"I need clarification on remote work policy for Fridays"}]}'
+```
+
+Emergency example:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/hrEscalationCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"A coworker threatened another and mentioned a weapon"}]}'
+```
+
+***
+
+## CometChat Integration
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Add AI Agent">Provider=<b>Mastra</b>, Agent ID=<code>hrEscalationCoordinatorAgent</code>.</Step>
+  <Step title="Deployment URL">Point to public <code>/api/agents/hrEscalationCoordinatorAgent/generate</code>.</Step>
+  <Step title="Test">Submit escalation text; verify footer & routing.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" icon={<img src="/docs/images/icons/react.svg" alt="React" />}>Pre-built chat components</Card>
+  <Card title="Widget" href="/widget/ai-agents" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />}>Embed quickly</Card>
+</CardGroup>
+
+***
+
+## Testing Checklist
+
+<Steps>
+  <Step title="Footer present">All responses end with valid JSON footer.</Step>
+  <Step title="Emergency banner">Shown only for critical issues.</Step>
+  <Step title="Routing accuracy">Keywords map to expected tier (harassment→emergency, wage issue→specialist, benefits→generalist).</Step>
+  <Step title="Resilience">Mis-typed or mixed cases still classify.</Step>
+  <Step title="No leakage">No extraneous text after footer line.</Step>
+</Steps>
+
+***
+
+## Security & Production Hardening
+
+- Add authentication (API key/JWT) to generate endpoint
+- Rate-limit to prevent misuse / data exfiltration
+- Centralize sensitive term lists in config, not inline code
+- Log classification decisions (without full sensitive text unless required for audit)
+- Encrypt / redact PII in downstream pipelines
+- Add runtime validation & output schema checks around the tool result
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| Missing footer | Agent instructions altered | Reapply footer spec & test | 
+| Wrong routing | Keywords list incomplete | Extend classifier terms in tool/logic | 
+| Emergency not flagged | Insufficient trigger phrases | Add synonyms / escalate threshold tuning | 
+| JSON parse failure | Extra punctuation or formatting | Trim line & parse substring after `FOOTER:` | 
+| CometChat silent | Wrong Agent ID / URL | Verify ID matches registration | 
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required OpenAI model key
+PORT=4111            # (If using custom server port)
+LOG_LEVEL=info       # Optional
+```
+
+***
+
+## Extending
+
+- Add sentiment weighting for urgency refinement
+- Multi-language escalation detection (add translation pre-step)
+- Ticket system webhook (parse footer → POST create ticket)
+- Observability dashboard (routing frequencies, false positives)
+- Add compliance audit trail persistence
+
+***
+
+## Reference Prompts
+
+```text
+A manager is planning a termination for repeated code of conduct violations.
+```
+```text
+Someone made a violent threat referencing a weapon in the warehouse.
+```
+```text
+I just want to quietly talk to HR about tension with my peer—no policy breach yet.
+```
+
+> Always verify high-risk outputs with a human before final resolution.
+

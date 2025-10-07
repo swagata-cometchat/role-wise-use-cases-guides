@@ -1,0 +1,269 @@
+# Build Your Automated Employee Onboarding Workflow Agent with Mastra
+
+> Create a Mastra agent that automates and optimizes employee onboarding: initiates workflows, automates tasks, orchestrates routing, sends smart notifications, analyzes performance, and connects to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra automation agents** for employee onboarding (workflow initiation, task automation, orchestration, notifications, analytics)
+- Optional multi‑agent pattern (execution + coordination)
+- REST endpoints for workflow initiation & status (extendable for deeper automation actions)
+- Tool‑driven automation: workflowInitiator, taskAutomator, workflowOrchestrator, notificationAutomator, metricsAnalyzer
+- CometChat AI Agent integration (mention-based activation optional)
+
+***
+
+## Prerequisites
+
+- Mastra project (e.g. `npx create-mastra@latest my-mastra-app`)
+- Node.js 18+
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat app for chat integration
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Swagger UI (local)**: (enable via Mastra build config) e.g. http://localhost:4000/swagger-ui
+- **Environment variables**: see README → Environment Variables
+
+***
+
+## How it works
+
+This example implements an AI-driven Employee Onboarding Workflow Agent that:
+
+- Generates a tailored onboarding workflow (tasks adapt to role, automation level, priority)
+- Progresses tasks with intelligent dependency & escalation handling
+- Orchestrates workflow states and predicts completion windows
+- Sends contextual notifications to employee / manager / HR / IT
+- Analyzes performance, bottlenecks, satisfaction, and compliance over selectable timeframes
+
+Key components:
+- Agent (base runtime): `src/mastra/index.ts`
+- Specialized agents: `src/mastra/agents/automation-agent.ts` (onboarding-workflow-automator, workflow-coordinator)
+- Tools: `src/mastra/tools/automation-tools.ts` (exported via `src/mastra/tools/index.ts`)
+- Types: `src/types` (extend for richer domain schemas)
+
+Current exposed routes (minimal demo):
+- `POST /api/workflow/initiate` – initialize an automated onboarding workflow
+- `GET /api/workflow/:workflowId/status` – retrieve live workflow status & automation metrics
+
+(You can expose additional REST endpoints wrapping each tool—for example `/automate-task`, `/orchestrate`, `/notify`, `/analyze`—mirroring patterns in the README.)
+
+***
+
+## Automation Levels
+
+| Level | Description | Typical Use | Key Capabilities |
+|-------|-------------|-------------|------------------|
+| Basic | Task tracking + manual decisions | Conservative adoption | Initiation, status, basic logging |
+| Advanced | Automated execution + smart notifications | Scaling teams | Task automation, orchestration, routing |
+| Full | Predictive / autonomous optimization | Mature automation strategy | AI decisioning, predictive analytics, proactive risk mitigation |
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install dependencies, create `.env`, add <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Add agent & tools">Ensure tools from <code>automation-tools.ts</code> are registered in the main agent (see <code>src/mastra/index.ts</code>).</Step>
+  <Step title="(Optional) Multi-agent">Register <code>onboarding-workflow-automator</code> and <code>workflow-coordinator</code> for separation of execution vs. governance.</Step>
+  <Step title="Expose routes">Verify <code>/api/workflow/initiate</code> & <code>/api/workflow/:id/status</code>; add more endpoints if needed.</Step>
+  <Step title="Run locally">Start dev server (e.g. <code>npm run dev</code>), open Swagger UI if enabled.</Step>
+  <Step title="Test tools via agent">POST to agent generate endpoint (e.g. <code>/api/agents/automatingEmployeeOnboardingAgent/generate</code>) prompting it to invoke tools.</Step>
+  <Step title="Integrate with CometChat">Register as Mastra provider; point Deployment URL to public agent generate route.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+```
+automating-employee-onboarding/
+├─ src/
+│  ├─ mastra/
+│  │  ├─ agents/
+│  │  │  └─ automation-agent.ts
+│  │  ├─ tools/
+│  │  │  ├─ automation-tools.ts
+│  │  │  └─ index.ts
+│  │  └─ index.ts
+│  └─ types/
+├─ README.md
+├─ guides.mdx (this guide)
+└─ package.json
+```
+
+***
+
+## Core Tools Overview
+
+| Tool | Purpose | Sample Trigger | Output Highlights |
+|------|---------|----------------|-------------------|
+| workflowInitiator | Create workflow + tasks | New hire event | Tasks, config, timeline |
+| taskAutomator | Start / complete / fail / escalate tasks | Task action | Next actions, insights, triggers |
+| workflowOrchestrator | Advance workflow state & decisions | Task completion / timer | New status, recommendations, risk flags |
+| notificationAutomator | Multi-role intelligent notifications | Milestones / issues | Delivery metrics, routing insights |
+| metricsAnalyzer | Periodic performance/compliance insight | Scheduled / manual | Benchmarks, optimization recommendations |
+
+***
+
+## Step 1 – Initiate a Workflow
+
+```bash
+curl -X POST http://localhost:4000/api/workflow/initiate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employeeInfo": {
+      "firstName": "Ava",
+      "lastName": "Lee",
+      "email": "ava.lee@example.com",
+      "startDate": "2025-01-15",
+      "position": "Data Analyst",
+      "department": "Analytics"
+    },
+    "automationLevel": "advanced",
+    "priority": "high"
+  }'
+```
+
+***
+
+## Step 2 – Automate a Task (via Agent Prompt)
+
+If not exposing a distinct REST endpoint yet, ask the agent to run `taskAutomator`:
+
+```bash
+curl -X POST http://localhost:4000/api/agents/automatingEmployeeOnboardingAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "Use taskAutomator to complete task 123 in workflow abc with nextTaskTrigger true" }
+    ]
+  }'
+```
+
+(Implement direct REST wrappers later for production consistency.)
+
+***
+
+## Step 3 – Orchestrate Workflow
+
+Prompt the agent:
+```json
+{
+  "role": "user",
+  "content": "Run workflowOrchestrator for workflow abc with status documents_collected triggeredBy task_completion and timelineStatus on_track"
+}
+```
+
+***
+
+## Step 4 – Send Notifications
+
+Example agent message:
+```json
+{
+  "role": "user",
+  "content": "Call notificationAutomator for workflow abc eventType milestone_reached recipients {employee: 'ava.lee@example.com', manager: 'lead@example.com'} urgency high"
+}
+```
+
+***
+
+## Step 5 – Analyze Metrics
+
+Prompt:
+```json
+{
+  "role": "user",
+  "content": "Invoke metricsAnalyzer with timeframe weekly analysisType performance"
+}
+```
+
+***
+
+## CometChat Integration
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Add AI Agent">Provider=<b>Mastra</b>, Agent ID=<code>automatingEmployeeOnboardingAgent</code> (or custom), URL=public generate endpoint.</Step>
+  <Step title="Mention Strategy">Optionally restrict responses unless explicitly addressed (e.g. <code>@onboarding</code>).</Step>
+  <Step title="Test">Send a guided onboarding prompt; confirm tool calls appear in logs.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="React UI Kit" href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" icon={<img src="/docs/images/icons/react.svg" alt="React" />}>Pre-built components</Card>
+  <Card title="Widget" href="/widget/ai-agents" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />}>Embed quickly</Card>
+</CardGroup>
+
+***
+
+## Testing Checklist
+
+<Steps>
+  <Step title="Workflow created">/api/workflow/initiate returns a workflowId + nextActions.</Step>
+  <Step title="Status progresses">GET /api/workflow/:id/status shows changing completionRate.</Step>
+  <Step title="Tool execution">Agent responses include efficiency insights & status tuple: <code>([automation-level] | efficiency: X% | status: Y)</code>.</Step>
+  <Step title="Metrics analysis">metricsAnalyzer yields performance or bottleneck data.</Step>
+</Steps>
+
+***
+
+## Security & Production Hardening
+
+- Add auth (API key / JWT) to automation & analysis routes
+- Enforce request size & rate limits (esp. notification / task actions)
+- Persist workflow state in DB (replace in‑memory <code>workflowRecords</code>)
+- Add structured logging & correlation IDs
+- Validate all inputs with Zod schemas (already present in tools)
+- Guard against prompt injection (sanitize user-supplied directives)
+- Separate public agent endpoints from internal admin/ops APIs
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| 404 on status | Wrong workflowId | Confirm ID returned from initiation |
+| Agent ignores tool request | Prompt lacks explicit instruction | Ask clearly: “Use taskAutomator …” |
+| Notifications missing | Not exposed as REST or recipients omitted | Add wrapper endpoint & validate recipients object |
+| Metrics uniform each run | Demo randomness | Replace with persisted telemetry feeds |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # Required OpenAI key
+PORT=4000                   # Server port (align with run script)
+LOG_LEVEL=info              # Optional logger level
+```
+
+***
+
+## Next Extensions
+
+- Expose full CRUD & suspension/resume for tasks
+- Add background workers for delayed orchestration triggers
+- Integrate HRIS / IT provisioning APIs
+- Persist analytics for historical trend modeling
+- Add vector memory for contextual reasoning across workflows
+
+***
+
+## Reference Prompts
+
+```text
+Initiate a new advanced onboarding workflow for a Senior Backend Engineer starting 2025-02-03 in Platform Engineering.
+```
+```text
+Analyze weekly performance across all workflows and surface top 3 optimization recommendations.
+```
+
+> This guide reflects the current minimal route surface. Expand endpoints alongside tool wrappers for production readiness.
+
