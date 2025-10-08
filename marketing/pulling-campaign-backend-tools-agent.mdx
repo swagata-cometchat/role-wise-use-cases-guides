@@ -1,0 +1,271 @@
+# Build Your Campaign Performance Data Agent with Mastra
+
+> Create a Mastra agent that pulls advertising campaign metrics, generates analytics reports (daily / weekly / monthly / custom), surfaces KPI insights, and delivers optimization recommendations — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A **Mastra agent** (`campaignPerformanceAgent`) specialized in campaign analytics.
+- Backend tool integrations:
+  - `get-campaign-metrics` — list or filter campaigns, aggregate KPIs.
+  - `generate-analytics-report` — produce structured performance report + insights.
+- Structured responses with benchmarks, grades (A+…D), and recommendations.
+- Optional CometChat AI Agent integration for real‑time performance Q&A.
+
+***
+
+## Prerequisites
+
+- Node.js 20.9+ (Mastra recommended)
+- Mastra project / this directory cloned
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat app for chat integration
+
+***
+
+## Quick Links
+
+- README: [`README.md`](./README.md)
+- Mastra registration: [`src/mastra/index.ts`](./src/mastra/index.ts)
+- Agent definition: [`src/mastra/agents/campaign-performance-agent.ts`](./src/mastra/agents/campaign-performance-agent.ts)
+- Tools (compiled build): `.mastra/output/tools/*.mjs`
+- Compiled agent output: `.mastra/output/index.mjs`
+
+> Note: In `src/mastra/index.ts` only the agent is registered (no custom REST routes). The agent’s tools are invoked internally via chat requests.
+
+***
+
+## How It Works
+
+The Campaign Performance Data Agent uses two primary tools:
+
+1. `get-campaign-metrics`
+   - Fetch single or multiple campaigns
+   - Filter by platform, status, budget range, date range
+   - Sort by ROAS, CTR, conversions, spend, etc.
+   - Returns aggregate metrics & performance grades
+
+2. `generate-analytics-report`
+   - Builds a report object (period, summary, insights, segments)
+   - Optional segments: demographics, devices, hourly, keywords
+   - Can include period comparison & trend list
+
+Workflow (typical prompt → response):
+- User asks: “Generate a weekly analytics report for CAMP-001 with demographics.”
+- Agent identifies need for structured report → calls `generate-analytics-report` with `reportType=weekly` and `includeSegments=['demographics']`.
+- Tool returns JSON: metrics, insights (e.g., ROAS alerts, CTR flags), optional comparison.
+- Agent formats a natural language answer referencing KPIs & recommendations.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    Run <code>npm install</code> inside <code>pulling-campaign-backend-tools-agent</code>.
+  </Step>
+  <Step title="Environment">
+    Create <code>.env</code> with <code>OPENAI_API_KEY=sk-...</code>.
+  </Step>
+  <Step title="Start dev server">
+    <code>npx mastra dev</code> (or <code>npm run dev</code> if added). The agent generate endpoint becomes available via Mastra’s default server (path pattern <code>/api/agents/&lt;id&gt;/generate</code> if server integration is present in your root app).
+  </Step>
+  <Step title="Test agent">
+    Use curl examples below to query metrics & generate reports.
+  </Step>
+  <Step title="Iterate">
+    Adjust instructions (benchmarks, tone) in the agent definition and re-run.
+  </Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+- Mastra
+  - `src/mastra/index.ts` (agent registration)
+  - `src/mastra/agents/campaign-performance-agent.ts`
+  - `src/mastra/tools/*` (if source versions exist; otherwise see `.mastra/output/tools`)
+- Build Output
+  - `.mastra/output/index.mjs` (compiled agent)
+  - `.mastra/output/tools/*.mjs` (compiled tools)
+
+***
+
+## Step 1 – Define the Agent
+
+Ensure the agent:
+- Has a clear instruction block: enumerate capabilities (retrieval, report generation, comparisons) + response format expectations.
+- References key metrics (ROAS, CTR, CPC, CPA, budget utilization).
+- Encourages contextual grounding (benchmarks, historical comparisons if accessible).
+
+Customization ideas:
+- Add a conversation memory store for multi-turn comparative analysis.
+- Insert guardrails (e.g., always cite data freshness `lastUpdated`).
+
+***
+
+## Step 2 – Tool Details
+
+`get-campaign-metrics` input highlights:
+- `campaignId` (optional) – fetch single campaign
+- `platform`, `status` – filter
+- `minBudget`, `maxBudget` – numeric constraints
+- `sortBy`, `sortOrder`
+
+Response extras:
+- Display fields (formatted currency, dates)
+- `budgetUtilization`, `performanceGrade`
+- Aggregates: totals + averages
+
+`generate-analytics-report` input highlights:
+- `campaignId` (required)
+- `reportType`: daily | weekly | monthly | custom
+- `dateRange`: required if `custom`
+- `includeSegments`: demographics | devices | hourly | keywords | placements
+- `comparisonPeriod`: boolean
+
+Report object:
+- `summary` (impressions, clicks, spend, conversions, revenue, CTR, CPC, CPA, ROAS, grade)
+- `insights[]` (type, priority, recommendation)
+- `segments` (optional breakdowns)
+- `comparison` (previousPeriod, % changes, trend strings)
+
+***
+
+## Step 3 – Run & Query
+
+<Steps>
+  <Step title="List all campaigns">Ask: <code>List all active campaigns with their performance metrics</code>.</Step>
+  <Step title="Filter by platform">Ask: <code>Show me all Google Ads campaigns</code>.</Step>
+  <Step title="Single campaign KPIs">Ask: <code>Show me metrics for campaign CAMP-001</code>.</Step>
+  <Step title="Generate weekly report">Ask: <code>Generate a weekly analytics report for campaign CAMP-001 with demographics and hourly data</code>.</Step>
+  <Step title="High ROAS discovery">Ask: <code>List campaigns with ROAS above 4x</code>.</Step>
+  <Step title="Budget band search">Ask: <code>Show campaigns with budget between $20,000 and $50,000</code>.</Step>
+</Steps>
+
+***
+
+## Step 4 – Advanced Prompts
+
+Try multi-constraint & exploratory queries:
+- “Compare performance across different advertising platforms.”
+- “Generate a monthly report for CAMP-002 with comparison to previous period.”
+- “Show top performing keywords and placements.”
+- “Find campaigns with high mobile traffic.”
+- “Highlight underperforming campaigns and improvement actions.”
+
+***
+
+## Step 5 – Deploy & Integrate with CometChat
+
+<Steps>
+  <Step title="Expose endpoint">Deploy the Mastra service (Render/Fly/Serverless) or tunnel locally (ngrok).</Step>
+  <Step title="Register in Dashboard">CometChat → AI Agents → Add. Provider=<b>Mastra</b>, Agent ID=<code>campaignPerformanceAgent</code>.</Step>
+  <Step title="Deployment URL">Point to <code>https://your-host/api/agents/campaignPerformanceAgent/generate</code>.</Step>
+  <Step title="Validate">Send a metrics request & a report request in dashboard chat.</Step>
+  <Step title="Embed UI">Use Widget / React UI Kit to surface inside your product.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs" />
+  <Card title="Mastra" href="https://mastra.ai" />
+</CardGroup>
+
+***
+
+## Step 6 – Scenario Validation
+
+<Steps>
+  <Step title="High ROAS Scaling">Prompt: <code>Should we scale campaigns with ROAS over 4x?</code> → Expect recommendation to reallocate budget.</Step>
+  <Step title="Low CTR Alert">Prompt: <code>Identify campaigns with CTR below 1%</code> → Expect creative optimization advice.</Step>
+  <Step title="Hourly Optimization">Prompt: <code>Show hourly performance for CAMP-001</code> → Expect peak hour recommendations.</Step>
+  <Step title="Platform Comparison">Prompt: <code>Compare Facebook vs Google campaigns</code> → Expect KPI comparison & strategic notes.</Step>
+</Steps>
+
+***
+
+## Sample Curl Commands
+
+```bash
+# Single campaign metrics
+curl -s -X POST http://localhost:4111/api/agents/campaignPerformanceAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Show me metrics for campaign CAMP-001"}]}'
+
+# List active campaigns
+curl -s -X POST http://localhost:4111/api/agents/campaignPerformanceAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"List all active campaigns with their performance metrics"}]}'
+
+# Generate weekly report with segments
+curl -s -X POST http://localhost:4111/api/agents/campaignPerformanceAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Generate a weekly analytics report for campaign CAMP-001 with demographics and hourly data"}]}'
+```
+
+***
+
+## Security & Production Checklist
+
+- Add authentication (API key/JWT) to agent endpoints if public.
+- Rate limit heavy analytical prompts & report generation.
+- Redact or avoid storing sensitive business metrics long-term.
+- Monitor tool call latency; consider caching for repeated queries.
+- Log structured events (tool name, duration, token use) — exclude raw financials if sensitive.
+- Version instruction prompts for reproducible analytics outputs.
+
+***
+
+## Troubleshooting
+
+| Issue | Resolution |
+|-------|-----------|
+| Campaign not found | Confirm correct ID (e.g., CAMP-001) & case sensitivity. |
+| Report missing segments | Ensure you requested segments in prompt; tool input must include `includeSegments`. |
+| ROAS seems off | Verify revenue & spend in source dataset; adjust mock data if needed. |
+| Always medium recommendations | Add more insight rules (e.g., low CTR, high mobile share thresholds). |
+| Endpoint 404 | Confirm server layer exposing `/api/agents/campaignPerformanceAgent/generate` is running. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required OpenAI key
+PORT=4111            # If using a custom server runtime
+```
+
+***
+
+## Extending
+
+| Goal | Approach |
+|------|----------|
+| Add spend pacing alerts | Compute expected vs actual spend slope per day; inject high-priority insight. |
+| Multi-campaign comparison report | Extend `generate-analytics-report` to accept an array & aggregate segments. |
+| External API integration | Replace mock DB arrays with real platform adapters (Google Ads, Meta Marketing API). |
+| KPI anomaly detection | Add z-score or rolling average deviation logic before insights. |
+| Export formats | Implement `exportFormat=summary|json|csv|pdf` in tool execution. |
+
+***
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Add More Tools" description="Bid & pacing automation" href="https://mastra.ai" />
+  <Card title="Embed in Chat" description="UI integration" href="https://www.cometchat.com/docs" />
+  <Card title="Workflow Orchestration" description="Scheduled reporting" href="https://mastra.ai" />
+</CardGroup>
+
+> Keep answers grounded: reference actual numeric metrics and avoid speculative guarantees.
+
+***
+
+Happy analyzing! 📊
+

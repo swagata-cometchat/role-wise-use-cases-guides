@@ -1,0 +1,263 @@
+# Build Your Campaign FAQ Knowledge & Operations Agent with Mastra
+
+> Create a Mastra agent that ingests campaign knowledge (URLs, PDFs, text, local files), retrieves context for FAQs, and executes campaign operations (create, analyze, segment, optimize) — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A **Mastra agent** (`campaign-faq`) that answers campaign FAQs + performs marketing operations.
+- Tooling endpoints for ingesting sources and searching knowledge.
+- Retrieval + tool-call pattern: search first, then answer with sources & disclaimers.
+- Optional CometChat AI Agent integration for in‑chat campaign support.
+- Swagger-enabled API for quick exploration.
+
+***
+
+## Prerequisites
+
+- Node.js 18+ (recommended 20.9+)
+- Mastra project or this folder checked out
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- (Optional) CometChat App for chat integration
+
+***
+
+## Quick Links
+
+- Project README: [`README.md`](./README.md)
+- Agent Registration: [`src/mastra/index.ts`](./src/mastra/index.ts)
+- Agent Definition: [`src/mastra/agents/campaign-faq-agent.ts`](./src/mastra/agents/campaign-faq-agent.ts)
+- Server Routes: [`src/mastra/server/routes.ts`](./src/mastra/server/routes.ts)
+- Ingest Route Logic: [`src/mastra/server/routes/ingest.ts`](./src/mastra/server/routes/ingest.ts)
+- Search Route Logic: [`src/mastra/server/routes/searchDocs.ts`](./src/mastra/server/routes/searchDocs.ts)
+- Tools (compiled): `.mastra/output/tools/*.mjs`
+- Swagger UI (local): `http://localhost:4111/swagger-ui`
+
+***
+
+## How It Works
+
+The Campaign FAQ Knowledge Agent:
+
+- Exposes two API tool routes:
+  - `POST /api/tools/ingestSources` — normalize & store PDFs, URLs, raw text, or local files into `knowledge/<namespace>` (default `campaign`).
+  - `POST /api/tools/searchDocs` — lightweight text search over ingested markdown.
+- Agent (`campaign-faq`) uses internal tools:
+  - `ingestSources` (structured ingestion)
+  - `campaignDocsRetriever` (token/phrase scoring with snippets)
+  - `campaignCreatorTool`, `performanceAnalyzerTool`, `audienceSegmentationTool`, `contentOptimizerTool`
+- Instruction flow enforces: retrieve → ground answer → add disclaimers → list `Sources: [...]`.
+- Swagger UI auto-generated for quick manual testing.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    Run <code>npm install</code> inside <code>campaign-faq-knowledge-agent</code>.
+  </Step>
+  <Step title="Env file">
+    Create <code>.env</code> with <code>OPENAI_API_KEY=sk-...</code>.
+  </Step>
+  <Step title="Start server">
+    <code>npm run dev</code> (Swagger at <code>/swagger-ui</code> once running on port 4111).</Step>
+  <Step title="Verify routes">
+    Open <code>GET /</code> root health route → should return <code>Campaign FAQ Knowledge Agent - OK</code>.</Step>
+  <Step title="Prepare knowledge">
+    Ingest a URL or text using <code>/api/tools/ingestSources</code> (examples below).</Step>
+  <Step title="Search & ask agent">
+    Use <code>/api/tools/searchDocs</code> or call the agent generate endpoint once integrated.</Step>
+</Steps>
+
+***
+
+## Project Structure (Essentials)
+
+- Runtime & Config: `package.json`, `tsconfig.json`, `README.md`
+- Agent: `src/mastra/agents/campaign-faq-agent.ts`
+- Server & Routes: `src/mastra/server/routes.ts`, `routes/ingest.ts`, `routes/searchDocs.ts`
+- Registration: `src/mastra/index.ts`
+- Knowledge Store: `knowledge/campaign/*.md` (created on ingestion)
+
+***
+
+## Step 1 – The Agent
+
+`campaign-faq-agent.ts` defines:
+- Name: <b>campaign-faq</b> → API path: <code>/api/agents/campaign-faq/generate</code> (Mastra default)
+- Multi-capability instructions (ingestion, retrieval, operations)
+- Mandatory disclaimers & source listing
+- Tool set for creation, analysis, segmentation, optimization
+
+To customize: adjust disclaimers, swap model (e.g., <code>openai('gpt-4o-mini')</code>), or add new specialized tools.
+
+***
+
+## Step 2 – Ingestion Flow
+
+Use `POST /api/tools/ingestSources` with JSON:
+
+```json
+{
+  "sources": ["https://example.com/marketing-guide"],
+  "namespace": "campaign"
+}
+```
+
+You may also supply:
+- `files`: array of local file paths (server-accessible)
+- Raw text (non-URL, non-path strings) is turned into markdown docs automatically.
+
+Returned payload lists `written[]` entries including errors.
+
+***
+
+## Step 3 – Retrieval Flow
+
+`POST /api/tools/searchDocs` body:
+
+```json
+{
+  "query": "attribution model",
+  "maxResults": 5,
+  "namespace": "campaign"
+}
+```
+
+Response returns matched files, excerpts, and simple positional scoring. The agent’s internal `campaignDocsRetriever` is more advanced (phrase + token weighting & filename bonus). Always ground answers on retrieved files and append `Sources: [...]`.
+
+***
+
+## Step 4 – Ask the Agent
+
+After server integration exposes the generate endpoint (Mastra default):
+
+```bash
+curl -X POST http://localhost:4111/api/agents/campaign-faq/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "How do I improve CTR after ingestion?" }
+    ]
+  }'
+```
+
+Agent will:
+1. Call `campaignDocsRetriever` (namespace `campaign`).
+2. Formulate answer with disclaimers.
+3. Provide tactical recommendations + `Sources: [...]`.
+
+***
+
+## Step 5 – CometChat Integration
+
+<Steps>
+  <Step title="Expose public URL">Deploy or tunnel (ngrok/Fly/Render) your Mastra service.</Step>
+  <Step title="Register agent">Dashboard → AI Agents → Add → Provider=<b>Mastra</b>, Agent ID=<code>campaign-faq</code>, Deployment URL=<code>https://your-host/api/agents/campaign-faq/generate</code>.</Step>
+  <Step title="Test prompt">Ask: <code>What are best practices for campaign budget pacing?</code></Step>
+  <Step title="Iterate">Refine instructions / add tools without changing Agent ID.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs" />
+  <Card title="Mastra" href="https://mastra.ai" />
+</CardGroup>
+
+***
+
+## Step 6 – Sample Ingestion & Query
+
+```bash
+# Ingest a marketing article URL
+curl -X POST http://localhost:4111/api/tools/ingestSources \
+  -H 'Content-Type: application/json' \
+  -d '{"sources":["https://example.com/marketing-funnel"]}'
+
+# Ingest raw text
+curl -X POST http://localhost:4111/api/tools/ingestSources \
+  -H 'Content-Type: application/json' \
+  -d '{"sources":["Attribution modeling helps allocate budget..."]}'
+
+# Search docs
+curl -X POST http://localhost:4111/api/tools/searchDocs \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"attribution","maxResults":3}'
+
+# Ask the agent (after ingestion)
+curl -X POST http://localhost:4111/api/agents/campaign-faq/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Explain attribution modeling"}]}'
+```
+
+***
+
+## Endpoints
+
+- Health: `GET /` → text OK
+- Ingest: `POST /api/tools/ingestSources`
+- Search: `POST /api/tools/searchDocs`
+- Agent Chat: `POST /api/agents/campaign-faq/generate` (Mastra auto)
+- Swagger UI: `/swagger-ui`
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""    # Required
+PORT=4111             # (If configured for server)
+```
+
+***
+
+## Production & Security Checklist
+
+- Add auth (API key/JWT) to `/api/tools/*` + agent endpoints.
+- Rate limit ingestion & search to prevent abuse.
+- Sanitize external HTML & limit PDF size.
+- Monitor tool errors; log without leaking secrets.
+- Enforce namespace allow‑list if multi-tenant.
+- Version prompts before major changes.
+
+***
+
+## Troubleshooting
+
+| Issue | Action |
+|-------|--------|
+| Empty search results | Verify files exist under `knowledge/campaign` and query length ≥ 2. |
+| Agent omits sources | Ensure retrieval succeeded; check tool call logs. |
+| Ingestion errors for URL | Check network / CORS; confirm accessible HTML or PDF. |
+| Local file not found | Path must be server-relative; ensure container has the file. |
+| Disclaimers missing | Confirm instructions in agent definition not overwritten. |
+
+***
+
+## Extending
+
+| Goal | Approach |
+|------|----------|
+| Better semantic search | Integrate embeddings & vector DB, fallback to current lexical. |
+| Scheduled re-ingestion | Add a workflow + cron triggering `ingestSources`. |
+| Metrics logging | Wrap tools to emit structured logs/analytics events. |
+| More operations | Add tools (e.g., bid optimizer, creative classifier). |
+| Multi-namespace | Expose namespace selector & enforce ACL. |
+
+***
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Add Vector Search" description="Enhance retrieval" href="https://mastra.ai" />
+  <Card title="Connect UI" description="Embed in chat" href="https://www.cometchat.com/docs" />
+  <Card title="Automate Workflows" description="Chain analyses" href="https://mastra.ai" />
+</CardGroup>
+
+> All answers must keep marketing disclaimers: encourage consultation & avoid guarantees.
+
+***
+
+Happy optimizing! 🚀
+

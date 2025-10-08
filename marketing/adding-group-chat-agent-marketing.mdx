@@ -1,0 +1,268 @@
+# Build Your Marketing Brainstorming Group Chat Agent with Mastra
+
+> Orchestrate multi-discipline marketing brainstorming: route requests to creative ideation, campaign planning, audience research, content strategy, and trend analysis — then plug it into CometChat for real-time collaborative innovation.
+
+***
+
+## What You’ll Build
+
+- A Mastra-powered group chat agent that interprets marketing team prompts and smart‑routes them to specialist logic.
+- Automatic classification into: creative ideation, campaign planning, audience research, content strategy, or trend analysis.
+- A coordination tool (`marketingBrainstormingCoordinator`) that returns structured output with `routedTo`, `helpType`, `nextSteps`.
+- A workflow (`marketing-brainstorming-workflow`) capable of orchestrating multi-step brainstorming support.
+- Integration path for **CometChat AI Agents** (agent responds in chat only when invoked explicitly if you enforce a mention rule).
+
+***
+
+## Prerequisites
+
+- Node.js 20.9+ (Mastra requirement)
+- Existing Mastra project or this folder checked out
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- Optional: A CometChat application (for embedding the agent into chat)
+
+***
+
+## Quick Links
+
+- Project README: [`README.md`](https://github.com/swagata-cometchat/marketing-AI-Agent/blob/main/adding-group-chat-agent-marketing/README.md)
+- Main Agent Definition: [`src/mastra/index.ts`](https://github.com/swagata-cometchat/marketing-AI-Agent/blob/main/adding-group-chat-agent-marketing/src/mastra/index.ts)
+- Coordinator Tool (TS Source): [`src/mastra/tools/marketing-brainstorming-coordinator-tool.ts`](https://github.com/swagata-cometchat/marketing-AI-Agent/blob/main/adding-group-chat-agent-marketing/src/mastra/tools/marketing-brainstorming-coordinator-tool.ts) *(compiled JS lives under `.mastra/output`)*
+- Workflow: [`src/mastra/workflows/marketing-brainstorming-workflow.ts`](https://github.com/swagata-cometchat/marketing-AI-Agent/blob/main/adding-group-chat-agent-marketing/src/mastra/workflows/marketing-brainstorming-workflow.ts)
+
+***
+
+## How It Works
+
+This example bundles a multi-specialist brainstorming system into a single Mastra agent:
+
+- The agent: `marketingBrainstormingGroupChatAgent` (registered by key inside `mastra` config)
+- A routing tool: `marketingBrainstormingCoordinator` that inspects the user request and returns structured JSON with the chosen specialist.
+- Specialists implemented inside the generated build (`.mastra/output/marketing-brainstorming-coordinator-tool.mjs`):
+  - Creative Ideation
+  - Campaign Planning
+  - Audience Research
+  - Content Strategy
+  - Trend Analysis
+- A workflow (`marketing-brainstorming-workflow`) that can be triggered for orchestrated multi-step sessions.
+- Memory layer (LibSQL in-memory for agent context during runtime) — swap storage for persistence.
+
+The tool output always includes:
+- `routedTo`: which specialist handled the request
+- `helpType`: abstracted category
+- `nextSteps`: recommended actionable steps
+- `brainstormingSessionDetails`: session metadata (topic, sessionId, type)
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    Run <code>npm install</code> in <code>adding-group-chat-agent-marketing</code>.
+  </Step>
+  <Step title="Create .env">
+    Add <code>OPENAI_API_KEY</code>. Example:<br/><code>OPENAI_API_KEY=sk-...</code>
+  </Step>
+  <Step title="Inspect agent config">
+    Open <code>src/mastra/index.ts</code> – note the registration of the agent, tool, workflow, memory, and logger.
+  </Step>
+  <Step title="Run dev server">
+    Use <code>npm run dev</code>. Confirm the agent endpoints (see below) respond.
+  </Step>
+  <Step title="Test tool routing">
+    Send a prompt containing terms like “plan a campaign timeline” or “audience demographics” and verify <code>routedTo</code> changes accordingly.
+  </Step>
+  <Step title="Prepare for CometChat">
+    Expose the public generate endpoint (through your hosting / tunnel) and register the agent in CometChat AI Agents.
+  </Step>
+</Steps>
+
+***
+
+## Project Structure (Key Files)
+
+- Runtime & Config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+- Mastra Core
+  - `src/mastra/index.ts` (agent + workflow registration)
+  - `src/mastra/workflows/marketing-brainstorming-workflow.ts`
+- Tools
+  - `src/mastra/tools/marketing-brainstorming-coordinator-tool.ts`
+- Generated Output (build artifacts)
+  - `.mastra/output/marketing-brainstorming-coordinator-tool.mjs`
+  - `.mastra/output/index.mjs`
+
+***
+
+## Step 1 – Define / Extend the Agent
+
+The agent in `src/mastra/index.ts`:
+- Name: <b>Marketing Brainstorming Group Chat Agent</b>
+- Model: <code>openai('gpt-4')</code> (replace with updated model if needed)
+- Tools: <code>marketingBrainstormingCoordinator</code>
+- Instruction ending requirement: must append <code>([routedTo] | action: yes/no | help-type: [helpType])</code> to responses.
+
+To customize:
+- Adjust instructions for brand voice.
+- Add another tool (e.g., <code>competitiveIntelTool</code>) and expand keyword routing inside the coordinator.
+
+***
+
+## Step 2 – Coordinator Tool Logic
+
+The coordinator:
+- Normalizes the user request → lower-case keyword scanning
+- Matches against arrays of keywords (creative, campaign, audience, content, trend)
+- Delegates to the corresponding internal specialist class
+- Returns a unified structured response
+
+Add new specialization:
+1. Create a new class with <code>async handle()</code> pattern (mirror existing ones)
+2. Add keywords to a new array
+3. Insert another <code>if</code> block before the default creative fallback
+4. Extend the Zod <code>outputSchema</code> if returning new structured fields
+
+***
+
+## Step 3 – Workflow
+
+`marketing-brainstorming-workflow` wraps the same routing logic as a workflow step (`coordinate-marketing-request`). Use this when you want to:
+- Chain with additional steps (e.g., enrichment, scoring, approval gates)
+- Schedule or re-run sessions programmatically
+
+You can trigger workflows from an API (if you add server workflow routes) or internally via Mastra runtime.
+
+***
+
+## Step 4 – Run Locally
+
+<Steps>
+  <Step title="Install & start">
+    <code>npm install && npm run dev</code>
+  </Step>
+  <Step title="Send a test request (example curl)">
+    Assuming an endpoint like <code>/api/agents/marketingBrainstormingGroupChatAgent/generate</code> is exposed by your broader app server:<br/>
+    <pre><code>curl -X POST http://localhost:4111/api/agents/marketingBrainstormingGroupChatAgent/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "Need audience research for Gen Z fitness app" }
+    ]
+  }'
+</code></pre>
+  </Step>
+  <Step title="Inspect response">
+    Confirm it ends with the required bracketed summary + contains <code>routedTo</code> and <code>nextSteps</code> inside returned JSON (if you surface raw tool output).
+  </Step>
+</Steps>
+
+> NOTE: This template directory by itself does not include HTTP route definitions (unlike the healthcare example). Integrate these components into a Mastra server or a unified monorepo service that exposes `/api/agents/*`.
+
+***
+
+## Step 5 – CometChat Integration
+
+<Steps>
+  <Step title="Expose public URL">Host or tunnel your Mastra service (e.g., via Render, Fly.io, or ngrok).</Step>
+  <Step title="Register agent">In CometChat Dashboard → AI Agents → Add New. Provider=<b>Mastra</b>, Agent ID=<code>marketingBrainstormingGroupChatAgent</code>, Deployment URL=<code>https://your-host/api/agents/marketingBrainstormingGroupChatAgent/generate</code>.</Step>
+  <Step title="Test in dashboard">Send prompts covering each specialization keyword set.</Step>
+  <Step title="Add to chat UI">Attach the agent in Chat Builder / UI Kit configuration.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="Docs - AI Agents" href="https://www.cometchat.com/docs" />
+  <Card title="Mastra" href="https://mastra.ai" />
+</CardGroup>
+
+***
+
+## Step 6 – Validate Specializations
+
+<Steps>
+  <Step title="Creative Ideation">Prompt: <code>Give me innovative campaign ideas for an eco-friendly shoe launch</code></Step>
+  <Step title="Campaign Planning">Prompt: <code>Plan a 6 week launch timeline with phases</code></Step>
+  <Step title="Audience Research">Prompt: <code>Who are the target segments for a B2B SaaS analytics tool?</code></Step>
+  <Step title="Content Strategy">Prompt: <code>Create a monthly content calendar for LinkedIn + blog</code></Step>
+  <Step title="Trend Analysis">Prompt: <code>What marketing trends should we leverage in Q4 for ecommerce?</code></Step>
+</Steps>
+
+Expected: Each returns a structured response with its own bullet sections plus `nextSteps` tailored to the specialization.
+
+***
+
+## Sample Curl Commands
+
+```bash
+# Creative ideation
+curl -X POST http://localhost:4111/api/agents/marketingBrainstormingGroupChatAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Need fresh ideas for a spring social campaign"}]}'
+
+# Trend analysis
+curl -X POST http://localhost:4111/api/agents/marketingBrainstormingGroupChatAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Share current digital marketing trends in fintech"}]}'
+```
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required OpenAI key
+# (Add any additional service keys you integrate later: e.g., ANALYTICS_API_KEY)
+```
+
+***
+
+## Extending the System
+
+| Goal | Action |
+| ---- | ------ |
+| Add Competitive Intelligence | Create `competitive-intel-agent.ts`, extend coordinator keywords, export new tool or embed into existing tool logic. |
+| Persist Sessions | Replace in-memory `LibSQLStore` with a file or remote LibSQL/SQLite path. |
+| Add Analytics KPIs | Introduce a `performanceMetricsTool` and call it when keyword set includes "metrics" / "ROI". |
+| Guardrails | Add output validators (Zod) before returning final agent text. |
+| Tone Control | Inject dynamic system prompt segments based on channel or brand mode. |
+
+***
+
+## Production & Security Checklist
+
+- Gate public endpoints with auth (API key/JWT) if exposed.
+- Enforce rate limiting & payload size limits.
+- Sanitize/log only non-sensitive brainstorming data if stored.
+- Monitor token usage & add budgeting alerts.
+- Version your prompts / instructions for A/B testing.
+
+***
+
+## Troubleshooting
+
+| Issue | Check |
+| ----- | ----- |
+| Tool always routes to creative ideation | Are new keywords added above fallback? Are you lowercasing input? |
+| Missing `([routedTo]...)` suffix | Ensure instruction block not overwritten; confirm no post-processing strips it. |
+| Repeated memory context | Verify memory store not persisting across dev reload; switch from in-memory if needed. |
+| Trend data feels generic | Consider integrating external APIs & enriching before final response. |
+| 404 on /api/agents/* | Ensure you actually mounted Mastra HTTP layer in a server file (not included here). |
+
+***
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Add More Tools" href="https://mastra.ai" description="Extend capabilities" />
+  <Card title="Connect to UI" href="https://www.cometchat.com/docs" description="Embed into chat" />
+  <Card title="Automate Workflows" href="https://mastra.ai" description="Chain multi-step processes" />
+</CardGroup>
+
+> Build momentum by iterating: add data sources, introduce scoring, and schedule recurring trend scans.
+
+***
+
+Happy brainstorming! 🚀
+

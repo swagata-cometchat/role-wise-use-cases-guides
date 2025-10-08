@@ -1,0 +1,250 @@
+# Build Your Multi‑Stakeholder Feedback Coordination Agent with Mastra
+
+> Create a Mastra agent that analyzes a request, selects relevant stakeholders (project manager, technical lead, business stakeholder), gathers their perspectives, consolidates concerns & recommendations, and returns prioritized next steps — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A **Mastra coordination agent** that routes a single request to multiple stakeholder logic blocks.
+- Automatic stakeholder selection (PM, Technical Lead, Business Stakeholder) via keyword heuristics.
+- A consolidated feedback object (concerns, recommendations, priority, next steps).
+- An enforced response suffix: `(Stakeholders: [list] | Priority: [priority] | Approval: yes/no)`.
+- Optional CometChat AI Agent integration for in‑chat decision support.
+
+***
+
+## Prerequisites
+
+- Node.js 18+ (recommended 20.9+)
+- OpenAI API key in `.env` as `OPENAI_API_KEY`
+- Mastra installed (scaffold or this directory)
+- (Optional) CometChat app for embedding
+
+***
+
+## Quick Links
+
+- **Project README**: [`README.md`](./README.md)
+- **Mastra config**: [`src/mastra/index.ts`](./src/mastra/index.ts)
+- **Coordinator tool (build)**: `.mastra/output/tools/*.mjs`
+- **Compiled agent output**: `.mastra/output/index.mjs`
+- **Agent ID**: `multiStakeholderFeedbackCoordinatorAgent`
+
+***
+
+## How It Works
+
+The coordination flow:
+
+1. Parse request text → determine stakeholders (always PM; add Technical Lead &/or Business Stakeholder based on keywords; fallback to all).
+2. Invoke internal feedback providers (each returns concerns, recommendations, priority guess, next steps).
+3. Aggregate all stakeholder feedback → deduplicate recommendations.
+4. Derive overall priority (explicit override or keyword rules: urgent/critical → high; routine/minor → low; else medium).
+5. Produce a combined message + structured JSON + required suffix.
+
+Key components:
+- **Coordinator Agent**: registered in `src/mastra/index.ts`.
+- **Tool**: `multiStakeholderFeedback` (input: request, optional stakeholders, optional priority).
+- **Stakeholder Logic**: Encoded inside generated tool classes (PM / Technical / Business personas).
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>multi-stakeholder-feedback</code>.</Step>
+  <Step title="Create .env">Add <code>OPENAI_API_KEY=sk-...</code>.</Step>
+  <Step title="Start dev server">Use <code>npx mastra dev</code> or <code>npm run dev</code> if scripted.</Step>
+  <Step title="Verify agent">Call the generate endpoint (curl below) and confirm suffix appears.</Step>
+  <Step title="Iterate">Adjust instructions / keyword logic to refine stakeholder selection.</Step>
+  <Step title="Integrate">Expose the endpoint publicly for CometChat if desired.</Step>
+</Steps>
+
+***
+
+## Project Structure (Essentials)
+
+- `src/mastra/index.ts` – registers the coordinator agent + tool
+- `src/mastra/agents/` – stakeholder & coordinator agent sources (if separated)
+- `src/mastra/tools/multi-stakeholder-feedback-tool.ts` – tool definition (source form) *(in build output only if not present in src here)*
+- `.mastra/output/` – compiled agent & tool implementations
+- `README.md` – overview & usage
+
+***
+
+## Step 1 – Define / Customize the Agent
+
+In `src/mastra/index.ts` ensure:
+- `name`: Multi-Stakeholder Feedback Coordinator Agent
+- Model: `openai('gpt-4')` (swap to newer or lighter model if desired)
+- Tool map includes `multiStakeholderFeedback`
+- Instructions end with the required suffix directive.
+
+Customization ideas:
+- Add more stakeholder roles (e.g. Compliance, Finance)
+- Insert clarifying question logic before aggregation when scope ambiguous.
+
+***
+
+## Step 2 – Stakeholder Routing Logic
+
+Heuristic triggers (excerpt):
+- Technical: `technical`, `api`, `database`, `architecture`, `security`, `development`
+- Business: `business`, `revenue`, `customer`, `market`, `strategy`, `roi`
+- Always includes Project Manager; if only PM matched → adds both others by default to ensure multi-perspective.
+
+Add new role:
+1. Implement feedback provider (pattern: `provideFeedback(request, priority)`).
+2. Extend `determineStakeholders` with role-specific keywords.
+3. Update name mapping & aggregation sections.
+4. Adjust output schema if adding unique fields.
+
+***
+
+## Step 3 – Execution Flow
+
+<Steps>
+  <Step title="User request">User posts descriptive text about feature, decision, or issue.</Step>
+  <Step title="Tool invoked">Agent calls <code>multiStakeholderFeedback</code> tool with request & (optional) explicit stakeholders/priority.</Step>
+  <Step title="Individual feedback">Each stakeholder provider constructs concerns, recommendations, next steps.</Step>
+  <Step title="Aggregation">Coordinator merges & deduplicates recommendations.</Step>
+  <Step title="Priority resolution">Explicit > keyword-derived > default (medium).</Step>
+  <Step title="Final response">Agent message + suffix + structured JSON (if tool output surfaced).</Step>
+</Steps>
+
+***
+
+## Step 4 – Run Locally & Test
+
+Expected base: `http://localhost:4111/api`
+
+Sample curl:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "We plan a new customer analytics dashboard feature" }
+    ]
+  }'
+```
+
+Look for:
+- Stakeholder list in suffix
+- Priority classification (e.g. medium)
+- Consolidated recommendations referencing PM / Technical / Business angles
+
+***
+
+## Step 5 – CometChat Integration
+
+<Steps>
+  <Step title="Expose endpoint">Deploy or tunnel your Mastra service (Render / Fly / ngrok).</Step>
+  <Step title="Register agent">Dashboard → AI Agents → Add — Provider=<b>Mastra</b>, Agent ID=<code>multiStakeholderFeedbackCoordinatorAgent</code>.</Step>
+  <Step title="Deployment URL">Set to <code>https://your-host/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate</code>.</Step>
+  <Step title="Validate">Send a test prompt involving technical + business terms.</Step>
+</Steps>
+
+<CardGroup>
+  <Card title="CometChat Docs" href="https://www.cometchat.com/docs" />
+  <Card title="Mastra" href="https://mastra.ai" />
+</CardGroup>
+
+***
+
+## Step 6 – Scenario Tests
+
+<Steps>
+  <Step title="Feature request">"Build new subscription billing API" → Expect PM + Technical + Business.</Step>
+  <Step title="Architecture">"Refactor database for scalability" → High technical weight.</Step>
+  <Step title="Market expansion">"Expand to EU market" → Business & PM emphasis.</Step>
+  <Step title="Urgent issue">"Urgent critical security vulnerability in auth service" → Priority high.</Step>
+</Steps>
+
+***
+
+## Sample Commands
+
+```bash
+# Technical architecture decision
+curl -X POST http://localhost:4111/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Should we migrate to a microservices architecture for scalability?"}]}'
+
+# Business strategy initiative
+curl -X POST http://localhost:4111/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"We are considering a new pricing strategy to increase revenue"}]}'
+
+# High priority security issue
+curl -X POST http://localhost:4111/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Urgent: Critical security vulnerability needs immediate attention"}]}'
+```
+
+***
+
+## Endpoint
+
+- POST `/api/agents/multiStakeholderFeedbackCoordinatorAgent/generate` — coordinate multi-stakeholder feedback
+
+***
+
+## Security & Production Checklist
+
+- Add API key or JWT auth to agent route.
+- Rate-limit requests to protect model usage.
+- Log non-sensitive metadata only; avoid confidential content in persistent logs.
+- Add input length validation and reject extremely large prompts.
+- Version prompts & maintain change history for governance.
+
+***
+
+## Troubleshooting
+
+| Issue | Resolution |
+|-------|------------|
+| Missing stakeholder | Confirm keywords present or pass explicit `stakeholders` in tool input. |
+| Priority always medium | Provide explicit `priority` or include urgency keywords (urgent/critical). |
+| Suffix absent | Ensure instruction text not modified; no post-processing trimming. |
+| Duplicate recommendations | Dedup logic relies on string equality; adjust phrasing if needed. |
+| 404 endpoint | Ensure Mastra server started with agent registered. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required OpenAI key
+PORT=4111            # If your Mastra server uses a PORT variable
+```
+
+***
+
+## Extending
+
+| Goal | Approach |
+|------|----------|
+| Add Finance stakeholder | Implement finance feedback provider + expand routing + name map. |
+| Weighted prioritization | Add scoring (impact * urgency) before final priority label. |
+| Async stakeholder fetch | Parallelize provider calls with Promise.all (ensure rate limits). |
+| Structured export | Output JSON artifact to persistence layer / audit log. |
+| Guardrails | Add schema validation on recommendations length / count. |
+
+***
+
+## Next Steps
+
+<CardGroup>
+  <Card title="Add More Stakeholders" href="https://mastra.ai" description="Broaden perspectives" />
+  <Card title="Embed in Chat" href="https://www.cometchat.com/docs" description="Real-time collaboration" />
+  <Card title="Automate Reviews" href="https://mastra.ai" description="Workflow triggers" />
+</CardGroup>
+
+> Drive alignment faster: expand roles, refine heuristics, and add automated follow-up scheduling.
+
+***
+
+Ready for feedback coordination! 🚀
+
