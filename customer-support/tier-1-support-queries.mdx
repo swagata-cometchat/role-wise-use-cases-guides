@@ -1,0 +1,299 @@
+# Build Your Tier‑1 Support Knowledge & Ticket Agent with Mastra
+
+> Create a Mastra agent that ingests support knowledge, retrieves contextual answers, classifies and tracks tickets, recommends common solutions, and decides on escalations — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Tier‑1 Support agent** (`tier-1-support`) for knowledge Q&A and ticket triage.
+- Explicit tool‑driven flows: content ingestion, document retrieval, ticket classification, escalation decisioning, resolution tracking, common solution guidance.
+- REST endpoints for chat + ingestion + search.
+- Optional Swagger UI for exploring the auto‑generated API surface.
+- Integration pathway into **CometChat** so users can self‑serve before human escalation.
+
+***
+
+## Prerequisites
+
+- Mastra project (`npx create-mastra@latest tier1-support` or this example).
+- Node.js 18+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) CometChat app for embedding the support agent.
+
+***
+
+## Quick links
+
+- README: ./README.md
+- Agent: ./src/mastra/agents/tier1-support-agent.ts
+- Knowledge Base (example): ./knowledge/support/*
+- Tools:
+  - ingestSources: ./src/mastra/tools/ingest-sources.ts
+  - supportDocsRetriever: ./src/mastra/tools/docs-retriever.ts
+  - ticketClassifier: ./src/mastra/tools/support-tools.ts (or index bundle)
+  - escalationDecision: ./src/mastra/tools/support-tools.ts
+  - resolutionTracker: ./src/mastra/tools/support-tools.ts
+  - commonSolutionsTool: ./src/mastra/tools/support-tools.ts
+- Server Routes (compiled): ./.mastra/.build/entry-0.mjs → `apiRoutes`
+- Swagger (local): http://localhost:4000/swagger-ui (port may differ if overridden)
+
+> If you rename the agent key, update CometChat configuration & endpoint paths accordingly.
+
+***
+
+## How it works
+
+The Tier‑1 Support Agent centralizes knowledge ingestion + retrieval + ticket lifecycle support:
+
+1. Ingest: `ingestSources` normalizes PDFs, HTML, markdown, inline text into `knowledge/<namespace>/` (default `support`).
+2. Retrieve: `supportDocsRetriever` ranks relevant docs/snippets for each user query.
+3. Classify: `ticketClassifier` assigns category, priority, complexity, estimated resolution window, and recommended action.
+4. Escalate: `escalationDecision` computes escalation score & urgency (immediate / priority / standard).
+5. Track: `resolutionTracker` records status changes, satisfaction, follow‑ups.
+6. Solve: `commonSolutionsTool` returns prebuilt step frameworks for frequent issues (password reset, account locked, etc.).
+
+The agent instructions enforce:
+- Always retrieve before answering.
+- Always append disclaimers & sources.
+- Escalation criteria for critical, complex, or security‑sensitive issues.
+- Separation of knowledge response vs. operational ticket metadata.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>tier-1-support-queries</code>.</Step>
+  <Step title="Environment">Create <code>.env</code>, set <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Seed knowledge">Place markdown / FAQ files under <code>knowledge/support/</code> or use <code>ingestSources</code>.</Step>
+  <Step title="Run dev"><code>npm run dev</code> (Mastra dev server starts; note port).</Step>
+  <Step title="Open Swagger">Visit <code>/swagger-ui</code> to inspect available endpoints.</Step>
+  <Step title="Test tools">Call ingestion + retrieval endpoints (examples below) to verify pipeline.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - package.json
+  - tsconfig.json
+  - README.md
+  - guides.mdx (this file)
+- Agent
+  - src/mastra/agents/tier1-support-agent.ts
+- Tools
+  - ingest-sources.ts (ingestion)
+  - docs-retriever.ts (document search)
+  - support-tools.ts (classification, escalation, resolution, common solutions)
+  - index.ts (tool exports)
+- Knowledge Base
+  - knowledge/support/*.md (ingested or seeded docs)
+- Server / Build Output
+  - .mastra/.build/entry-0.mjs (runtime routes & agent wiring)
+  - /swagger-ui (auto UI)
+
+***
+
+## Step 1 - Define the Agent
+
+Ensure `tier-1-support-agent.ts`:
+
+- Uses name <b>"tier-1-support"</b> so endpoint is `/api/agents/tier-1-support/generate`.
+- Lists all six tools in `tools: {}` object.
+- Instruction block mandates retrieval-first answers + disclaimers + sources listing.
+- Optionally enforce mention (e.g., respond only if message contains <code>@support</code>) by adding directive to instructions.
+
+***
+
+## Step 2 - Tooling Overview
+
+<CardGroup>
+  <Card title="ingestSources" description="Normalize PDFs / URLs / text into knowledge namespace." />
+  <Card title="supportDocsRetriever" description="Rank support docs/snippets for a query." />
+  <Card title="ticketClassifier" description="Assign category, priority, complexity, ETA." />
+  <Card title="escalationDecision" description="Score escalation urgency & recommend next action." />
+  <Card title="resolutionTracker" description="Record status, satisfaction, follow-up actions." />
+  <Card title="commonSolutionsTool" description="Return templated multi-step solution flows." />
+</CardGroup>
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Start"><code>npm run dev</code></Step>
+  <Step title="Ingest">POST <code>/api/tools/ingestSources</code> with sources/files.</Step>
+  <Step title="Search">POST <code>/api/tools/searchDocs</code> with a <code>query</code>.</Step>
+  <Step title="Chat">POST <code>/api/chat</code> with <code>message</code> to get an agent answer.</Step>
+  <Step title="Agent generate (optional)">POST <code>/api/agents/tier-1-support/generate</code> for direct Mastra generate output.</Step>
+</Steps>
+
+Endpoints (default):
+- POST `/api/tools/ingestSources`
+- POST `/api/tools/searchDocs`
+- POST `/api/chat`
+- POST `/api/agents/tier-1-support/generate` (Mastra auto)
+- GET  `/swagger-ui`
+
+***
+
+## API Examples
+
+```bash
+# Ingest a public FAQ page & inline text
+curl -X POST http://localhost:4000/api/tools/ingestSources \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sources": ["https://example.com/support/faq", "Common password reset steps"],
+    "namespace": "support"
+  }'
+```
+
+```bash
+# Search knowledge
+curl -X POST http://localhost:4000/api/tools/searchDocs \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "reset password", "namespace": "support"}'
+```
+
+```bash
+# Chat with tier-1 support (server wrapper)
+curl -X POST http://localhost:4000/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "How do I reset my password?"}'
+```
+
+```bash
+# Direct Mastra generate endpoint
+curl -X POST http://localhost:4000/api/agents/tier-1-support/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages": [{"role": "user", "content": "@support billing invoice not showing"}]}'
+```
+
+***
+
+## Step 4 - Knowledge Ingestion Workflow
+
+<AccordionGroup>
+  <Accordion title="Sources vs Files">Use <code>sources</code> for URLs or inline text; <code>files</code> for local paths. At least one required.</Accordion>
+  <Accordion title="Normalization">HTML stripped → markdown; PDFs parsed → text blocks; raw text wrapped with header metadata.</Accordion>
+  <Accordion title="Namespaces">Default <code>support</code>. Create additional namespaces (e.g., <code>billing</code>, <code>onboarding</code>) for segmentation.</Accordion>
+  <Accordion title="Versioning">Re‑ingesting same URL generates new markdown snapshot (implement dedupe if needed).</Accordion>
+</AccordionGroup>
+
+***
+
+## Step 5 - Retrieval & Answer Composition
+
+<Steps>
+  <Step title="Retrieve first">Agent calls <code>supportDocsRetriever</code>.</Step>
+  <Step title="Fallback namespace">If empty results in <code>support</code>, try <code>default</code> (extend agent instructions).</Step>
+  <Step title="Synthesize answer">Answer strictly from excerpts; decline speculation when no content found.</Step>
+  <Step title="Attach sources">List file basenames at end: <code>Sources: [a.md, b.md]</code>.</Step>
+  <Step title="Add disclaimers">Always append required troubleshooting disclaimer lines.</Step>
+</Steps>
+
+***
+
+## Step 6 - Ticket Operations Flow
+
+| Stage | Tool | Output Highlights |
+|-------|------|-------------------|
+| Classification | ticketClassifier | category, priority, complexity, ETA, recommendedAction |
+| Common Solution | commonSolutionsTool | title, steps[], escalationCriteria[] |
+| Escalation Decision | escalationDecision | shouldEscalate, urgency, score, reasoning, recommendation |
+| Resolution Tracking | resolutionTracker | trackingData, metrics, followUpActions |
+
+> Combine outputs: First classify → maybe solution → decide escalation → track status.
+
+***
+
+## Step 7 - Connect to CometChat
+
+<Steps>
+  <Step title="Public endpoint">Expose <code>/api/agents/tier-1-support/generate</code> (or intermediary backend) over HTTPS.</Step>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Add new: Provider=Mastra, Agent ID=<code>tier-1-support</code>.</Step>
+  <Step title="Deployment URL">Enter public generate endpoint URL.</Step>
+  <Step title="Enable">Save & confirm agent is active.</Step>
+</Steps>
+
+> Optionally gate responses behind mention token <code>@support</code> to reduce noise in multi‑agent rooms.
+
+***
+
+## Step 8 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Add suggestion prompts">Examples: "Reset password", "Billing charge dispute", "Account locked".</Step>
+  <Step title="Design escalation UI">Badge or highlight when escalationDecision recommends escalate.</Step>
+  <Step title="Show sources">Render a collapsible list of referenced files.</Step>
+  <Step title="Test flows">Trigger classification + escalation by providing complex issue text.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1200" height="640" />
+</Frame>
+
+***
+
+## Step 9 - Validate End‑to‑End
+
+<Steps>
+  <Step title="Ingestion success">Check response: <code>written</code> array with file names & bytes.</Step>
+  <Step title="Retrieval relevance">Queries return scored documents with excerpts.</Step>
+  <Step title="Ticket classification">Priority & complexity align with issue text.</Step>
+  <Step title="Escalation scoring">Critical keywords produce immediate escalation.</Step>
+  <Step title="Resolution tracking">Status changes yield metrics & followUpActions.</Step>
+</Steps>
+
+***
+
+## Security & Production Checklist
+
+- Restrict ingestion endpoint (auth / role based) to prevent malicious content.
+- Validate file size & MIME (currently size-limited; add MIME allowlist).
+- Sanitize HTML → markdown (already removing script/style; extend sanitizer as needed).
+- Log tool invocations with request ID & user ID for audit.
+- Rate limit chat & ingestion endpoints.
+- Encrypt or redact sensitive content before persisting.
+- Keep API keys server-side (never transmit to clients).
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|-----------|
+| No results from retrieval | Empty namespace or tokens filtered | Confirm files in `knowledge/support`; expand query terms. |
+| Sources list empty | Not appending sources after answer | Ensure agent instructions unchanged; retrieval must precede answer. |
+| Escalation always false | Issue text lacks weighted keywords | Add domain keywords or tune scoring thresholds. |
+| Duplicate ingested files | Multiple ingestions of same URL | Implement hashing / skip logic (future enhancement). |
+| Slow ingestion | Large PDF or network latency | Add timeout / parallelize fetch; set size limits. |
+| Missing Swagger UI | Build config disabled | Ensure `server.build.swaggerUI: true` in Mastra config. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""       # Required for OpenAI model
+PORT=4000                # Server port (if overriding default)
+MASTRA_LOG_LEVEL=info    # Optional logging level
+```
+
+***
+
+## Extension Ideas
+
+<CardGroup>
+  <Card title="Vector Embeddings" description="Add semantic retrieval for fuzzy queries." />
+  <Card title="Auto Feedback Loop" description="Capture thumbs up/down to refine solutions." />
+  <Card title="Analytics Dashboard" description="Visualize deflection rate & escalation metrics." />
+  <Card title="Multi-Namespace Search" description="Aggregate results across product modules." />
+</CardGroup>
+
+> You now have a foundation for scalable Tier‑1 support deflection. Extend with semantic search, adaptive routing, and richer analytics to maximize efficiency.
+

@@ -1,0 +1,251 @@
+# Build Your Multi-Agent Support Orchestration System with Mastra
+
+> Create a Mastra-driven orchestration layer that routes incoming support queries to specialized agents (technical, billing, HR, sales, general), handles intelligent escalation to human or manager, and returns consistent responses — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Support Orchestrator** that analyzes queries and selects the right specialist.
+- **Specialist agents** for technical, billing, HR, sales, and general support roles.
+- **Escalation pathway** to human representative or manager based on output patterns.
+- REST endpoints to submit queries and perform health checks.
+- Optional Express server variant plus raw Node HTTP server.
+- Integration pattern for **CometChat** AI Agents routing.
+
+***
+
+## Prerequisites
+
+- Mastra project (or this example directory).
+- Node.js 18+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY` (if real Mastra agents leveraged; mock server may not require).
+- (Optional) CometChat app for chat embedding.
+
+***
+
+## Quick links
+
+- README: ./README.md
+- Orchestrator Logic: ./src/mastra/agents/support-orchestrator.ts
+- Specialist Agents: ./src/mastra/agents/*.ts
+- Test Script: ./test-orchestration.js
+- HTTP Server (vanilla): ./server.js
+- Express Server (alternative): ./express-server.js
+
+> The sample includes both a pure Node server (`server.js`) and an Express server (`express-server.js`). Choose one environment.
+
+***
+
+## How it works
+
+Incoming queries are:
+
+1. Analyzed for keyword patterns (technical / billing / hr / sales). Default → general.
+2. Routed to the corresponding agent for streaming or synthesized response.
+3. Monitored for escalation keywords (e.g., "escalate", "escalate to manager").
+4. Optionally escalated to manager or human representative agent; escalation metadata returned.
+5. Response packaged with routing info: category, confidence, reasoning, escalation flags.
+
+Key components:
+- SupportOrchestrator: category detection + routing + escalation.
+- Specialist Agents: domain responses & style.
+- Escalation Logic: pattern-driven second-stage routing.
+- Endpoints: `/api/chat`, `/api/health`, optional `/api/agents` (Express version).
+
+***
+
+## Architecture Overview
+
+<CardGroup>
+  <Card title="Orchestrator" description="Central classifier & router selecting target agent." />
+  <Card title="Specialists" description="Domain-specific agents (technical, billing, HR, sales, general)." />
+  <Card title="Escalation" description="Human + Manager fallback layers triggered by response patterns." />
+  <Card title="Interfaces" description="REST endpoints for chat + monitoring & test harness script." />
+</CardGroup>
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install deps">Run <code>npm install</code> in <code>multi-agent-orchestration</code>.</Step>
+  <Step title="Env vars">Add <code>OPENAI_API_KEY</code> if using real Mastra agents (mock server may not need).</Step>
+  <Step title="Choose server">Decide: <code>node server.js</code> (vanilla) or <code>node express-server.js</code> (Express).</Step>
+  <Step title="Run dev">Start chosen server; expect log lines with endpoints.</Step>
+  <Step title="Smoke test">POST to <code>/api/chat</code> with sample billing / technical queries.</Step>
+  <Step title="Run orchestration tests">Execute <code>node test-orchestration.js</code> (uses curl internally).</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - package.json
+  - tsconfig.json
+  - README.md
+  - guides.mdx (this file)
+- Servers
+  - server.js (vanilla HTTP)
+  - express-server.js (Express + extra endpoints)
+  - test-orchestration.js (integration tests)
+- Mastra (if integrated)
+  - src/mastra/index.ts (not shown above if minimal)
+  - src/mastra/agents/* (specialist + orchestrator classes)
+  - src/mastra/tools/support-routing-tool.ts (if extended)
+  - src/mastra/workflows/support-orchestration-workflow.ts (workflow logic)
+
+***
+
+## Step 1 - Orchestrator Logic
+
+<AccordionGroup>
+  <Accordion title="Classification">Pattern matching on lower-cased query for domain keywords (technical, billing, hr, sales); fallback general.</Accordion>
+  <Accordion title="Routing">Select agent instance → stream or generate answer → capture output.</Accordion>
+  <Accordion title="Escalation">Post-process response; if contains escalation phrases, re-route to manager/human agent.</Accordion>
+  <Accordion title="Confidence Scoring">Base confidence fixed (0.6–0.9) per category; extend with ML or embeddings later.</Accordion>
+  <Accordion title="Resilience">Fallback to general support if any exception occurs.</Accordion>
+</AccordionGroup>
+
+***
+
+## Step 2 - Agents
+
+Each specialist agent encapsulates domain phrasing. Extend by:
+- Adding deeper tool use (log retrieval, billing ledger queries, HR policy fetch).
+- Injecting vector retrieval for knowledge grounding.
+- Tracking per-session memory for multi-turn context.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Vanilla server"> <code>node server.js</code> </Step>
+  <Step title="Express server (option)"> <code>node express-server.js</code> </Step>
+  <Step title="Health check">GET <code>/api/health</code> → JSON status.</Step>
+  <Step title="Chat query">POST <code>/api/chat</code> with JSON <code>{"message": "My API is crashing"}</code>.</Step>
+</Steps>
+
+Example curl:
+```bash
+curl -X POST http://localhost:4000/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message": "I have a billing issue with my invoice"}'
+```
+
+***
+
+## Step 4 - Testing
+
+Run integrated test harness:
+```bash
+node test-orchestration.js
+```
+It spawns the server, fires representative domain queries, validates expected routing category and prints confidence.
+
+***
+
+## Step 5 - Integrate with CometChat
+
+<Steps>
+  <Step title="Prepare public endpoint">Expose <code>/api/chat</code> over HTTPS (reverse proxy / deployment).</Step>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Add new agent: Provider=Custom (or Mastra if integrated), ID=<code>support-orchestrator</code>.</Step>
+  <Step title="Deployment URL">Point to public chat endpoint (or Mastra generate endpoint if using native agents).</Step>
+  <Step title="Save & enable">Confirm agent toggled Enabled.</Step>
+</Steps>
+
+> If migrating to full Mastra agents, map orchestrator to `/api/agents/support-orchestrator/generate` and adjust CometChat configuration accordingly.
+
+***
+
+## Step 6 - Chat Builder Customization
+
+<Steps>
+  <Step title="Variant setup">Open agent variant in Chat Builder.</Step>
+  <Step title="Suggested prompts">Add domain prompts ("My invoice is wrong", "App crash", "Need vacation policy").</Step>
+  <Step title="Escalation messaging">Define UI pattern for escalated answers (badges / color strip).</Step>
+  <Step title="Preview">Validate category badges & escalation flags appear.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1200" height="640" />
+</Frame>
+
+***
+
+## Step 7 - Production Hardening
+
+<CardGroup>
+  <Card title="Observability" description="Add structured logs, latency & routing metrics." />
+  <Card title="Rate Limiting" description="Protect /api/chat from abuse with sliding window limiter." />
+  <Card title="Auth Layer" description="JWT / API key enforcement for external calls." />
+  <Card title="Vector Search" description="Enhance classification with embeddings + semantic recall." />
+</CardGroup>
+
+***
+
+## Step 8 - Sample Advanced Queries
+
+```bash
+# Technical (crash)
+curl -s -X POST http://localhost:4000/api/chat -H 'Content-Type: application/json' \
+  -d '{"message": "The system crash error 500 when I deploy"}' | jq .routing
+
+# HR (vacation)
+curl -s -X POST http://localhost:4000/api/chat -H 'Content-Type: application/json' \
+  -d '{"message": "I need vacation leave balance details"}' | jq .routing
+
+# Sales (enterprise pricing)
+curl -s -X POST http://localhost:4000/api/chat -H 'Content-Type: application/json' \
+  -d '{"message": "Tell me about enterprise pricing tiers"}' | jq .routing
+```
+
+***
+
+## Security & Production Checklist
+
+- Validate & sanitize `message` input (length, content-type, injection safety).
+- Enforce authentication (API key / OAuth) for external clients.
+- Implement request & concurrency limits per IP.
+- Log routing decisions, confidence, escalation path for analytics.
+- Add circuit breakers/fallback when classification fails.
+- Keep `OPENAI_API_KEY` server-side only.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|-----------|
+| Misrouted domain | Overlapping keywords | Add priority ordering or ML classifier. |
+| Low confidence | Sparse keywords | Introduce semantic embeddings or fallback clarifying question. |
+| Escalations missing | Patterns not matched | Extend escalation phrase list or enforce agent tags. |
+| High latency | Sequential operations | Parallelize analysis + prefetch or cache frequent answers. |
+| Server crash | Uncaught promise error | Wrap routing & stream loops in try/catch; add fallback. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required if using real Mastra agents
+PORT=4000            # Server port
+LOG_LEVEL=info       # (Optional) logging verbosity
+```
+
+***
+
+## Extension Ideas
+
+<CardGroup>
+  <Card title="Adaptive ML Classifier" description="Train model on historical routing transcripts." />
+  <Card title="Feedback Loop" description="Collect thumbs-up/down to refine patterns." />
+  <Card title="Escalation SLA" description="Track time-to-human & manager response metrics." />
+  <Card title="Multi-Language" description="Detect language, translate, maintain routing fidelity." />
+</CardGroup>
+
+> You now have a foundation for intelligent multi-agent support orchestration. Extend classification, add tooling integration, and evolve toward autonomous remediation flows.
+

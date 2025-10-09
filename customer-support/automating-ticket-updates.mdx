@@ -1,0 +1,274 @@
+# Build Your Ticket Management Automation Agent with Mastra
+
+> Create a Mastra agent that automates support ticket operations: retrieval, status transitions, priority handling, assignment, escalations, SLA tracking, and analytics — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A Mastra-powered ticket management agent with tool-invocation.
+- Triggered only when explicitly mentioned (recommended: `@tickets`), minimizing unsolicited responses.
+- Endpoints (Mastra auto) to generate responses and execute ticket tools.
+- Ticket lifecycle automation: open → in_progress → pending/escalated/resolved → closed (with reopen flows).
+- Integrated into CometChat conversations for contextual support analytics & actions.
+
+***
+
+## Prerequisites
+
+- Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+.
+- OpenAI key in `.env` as `OPENAI_API_KEY`.
+- Optional: CometChat app for chat integration.
+
+***
+
+## Quick links
+
+- Project README: ./README.md
+- Agent definition: ./src/mastra/agents/ticket-management-agent.ts
+- Tools: 
+  - getTicketsTool: ./src/mastra/tools/get-tickets-tool.ts
+  - updateTicketTool: ./src/mastra/tools/update-ticket-tool.ts
+  - generateTicketReportTool: ./src/mastra/tools/generate-ticket-report-tool.ts
+- Mastra registration: ./src/mastra/index.ts
+
+> Note: No custom REST workflow routes are defined yet (only the agent generate endpoint). You can add domain-specific routes later (e.g., `/api/tickets/*`).
+
+***
+
+## How it works
+
+This example implements a Ticket Management Agent that:
+
+- Uses three tools for retrieval, updates, and analytics/report generation.
+- Enforces ticket status transition rules & priority behaviors inside the agent instructions.
+- Supports auto-escalation for critical priority and SLA awareness (extend logic in tools or future workflows).
+- Can be invoked from chat to fetch filtered ticket sets or produce structured performance reports.
+
+Key capabilities baked into instructions:
+- Status validation & lifecycle integrity
+- Smart assignment & escalation triggers
+- Priority-based handling (critical/high/medium/low) & SLA hints
+- Analytics generation (counts, overdue, workload suggestions)
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> in <code>automating-ticket-updates</code>.</Step>
+  <Step title="Configure env">Create <code>.env</code> with <code>OPENAI_API_KEY</code>. (Add <code>PORT</code> if you introduce a server.)</Step>
+  <Step title="Review agent name">Current <code>name</code> is <code>"Ticket Management Agent"</code>. For cleaner API paths, optionally rename to <code>ticket-management</code>.</Step>
+  <Step title="Start dev">Use <code>npm run dev</code>. Mastra exposes agent generate endpoint automatically.</Step>
+  <Step title="Test tool calls">Ask the agent to: "Show all open critical tickets" or "Generate last week performance report".</Step>
+  <Step title="Connect to CometChat">Register agent with the ID you choose (e.g., <code>ticket-management</code>) and point to its public generate endpoint.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & config
+  - package.json
+  - tsconfig.json
+  - README.md
+  - guides.mdx (this file)
+- Mastra core
+  - src/mastra/index.ts (registers agent)
+- Agent
+  - src/mastra/agents/ticket-management-agent.ts
+- Tools
+  - src/mastra/tools/get-tickets-tool.ts
+  - src/mastra/tools/update-ticket-tool.ts
+  - src/mastra/tools/generate-ticket-report-tool.ts
+  - src/mastra/tools/index.ts
+- Entry
+  - src/index.ts
+
+***
+
+## Step 1 - Define the Agent
+
+In <code>src/mastra/agents/ticket-management-agent.ts</code> ensure:
+
+- <b>name</b>: (Rename to <code>ticket-management</code> if you want URL-safe slug.)
+- Includes instructions covering: transitions, priorities, escalation, reporting.
+- Registers tools: <code>getTicketsTool</code>, <code>updateTicketTool</code>, <code>generateTicketReportTool</code>.
+- Only acts when clearly invoked (add mention logic if embedding in multi-agent chats — e.g., instruct: "Respond only when user mentions @tickets").
+
+***
+
+## Step 2 - Register in Mastra
+
+<code>src/mastra/index.ts</code> currently:
+
+```ts
+export const mastra = new Mastra({
+  agents: { ticketManagementAgent },
+});
+```
+
+If you rename the agent to <code>ticket-management</code>, keep the object key stable or adjust how you derive the API path in your server layer. (Mastra usually maps <code>/api/agents/{key}/generate</code>.)
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Install"> <code>npm install</code> </Step>
+  <Step title="Dev server"> <code>npm run dev</code> (ensure a server layer if you need REST beyond generate). </Step>
+  <Step title="Call agent">Use curl below against the generate endpoint once exposed.</Step>
+</Steps>
+
+Assuming key = <code>ticketManagementAgent</code> the path is likely:
+
+- POST <code>/api/agents/ticketManagementAgent/generate</code>
+
+If renamed to <code>ticket-management</code> and keyed accordingly:
+
+- POST <code>/api/agents/ticket-management/generate</code>
+
+***
+
+## Supported Ticket Operations
+
+| Operation | Description | Tool |
+|-----------|-------------|------|
+| Retrieve Tickets | Filter by status, priority, assignment, category, date | getTicketsTool |
+| Update Ticket | Change status, priority, assignment, add comments | updateTicketTool |
+| Generate Report | Metrics: counts, SLA, overdue, workloads, trends | generateTicketReportTool |
+
+Status transitions enforced (examples):
+- open → in_progress, pending, escalated, resolved, closed
+- in_progress → pending, escalated, resolved, open
+- pending → open, in_progress, escalated, resolved
+- escalated → in_progress, resolved, open
+- resolved → closed, open (reopen)
+- closed → open (reopen)
+
+Priority handling:
+- critical → auto-escalate, immediate senior assignment
+- high → target <24h
+- medium → target <48h
+- low → target <72h
+
+***
+
+## Step 4 - Connect to CometChat
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Navigate to <b>AI Agents</b>.</Step>
+  <Step title="Add">Provider=Mastra, Agent ID=<code>ticket-management</code> (or the key you chose).</Step>
+  <Step title="Deployment URL">Point to public <code>/api/agents/{id}/generate</code>.</Step>
+  <Step title="Enable">Save & verify status shows Enabled.</Step>
+</Steps>
+
+***
+
+## Step 5 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Open the agent variant in Chat Builder.</Step>
+  <Step title="Attach agent">Ensure the Mastra ticket agent is selected.</Step>
+  <Step title="Theme & layout">Adjust UI to match support console.</Step>
+  <Step title="Preview">Test sample prompts: "@tickets list critical overdue".</Step>
+</Steps>
+
+***
+
+## Step 6 - Test Your Setup
+
+<Steps>
+  <Step title="Generate response">POST generate endpoint returns a structured ticket answer.</Step>
+  <Step title="Tool invocation">Agent calls <code>getTicketsTool</code> when user requests lists.</Step>
+  <Step title="Update flow">Changing priority to critical triggers escalation rationale.</Step>
+  <Step title="Report output">Analytics report includes metrics & actionable insights.</Step>
+</Steps>
+
+```bash
+# Example: list open high priority tickets
+curl -X POST http://localhost:4111/api/agents/ticket-management/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@tickets show open high priority tickets" }
+    ]
+  }'
+```
+
+```bash
+# Example: update a ticket
+curl -X POST http://localhost:4111/api/agents/ticket-management/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@tickets update ticket TKT-002 status to resolved with comment Fixed root cause" }
+    ]
+  }'
+```
+
+```bash
+# Example: generate a weekly performance report
+curl -X POST http://localhost:4111/api/agents/ticket-management/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@tickets generate performance report for last week" }
+    ]
+  }'
+```
+
+***
+
+## Deployment Notes
+
+- Expose only necessary endpoints publicly.
+- Add auth (API key / JWT) for generate route.
+- Rate limit heavy report generation.
+- Log tool invocations for auditing (assignment & escalation decisions).
+
+***
+
+## Security & Production Checklist
+
+- Validate ticket IDs & input schemas server-side.
+- Sanitize user-provided text (comments) before storing/logging.
+- Enforce role-based permissions for updates/escalations.
+- Monitor SLA metrics & error logs.
+- Keep OpenAI key server-side only.
+
+***
+
+## Troubleshooting
+
+| Issue | Check |
+|-------|-------|
+| Agent not responding | Ensure mention token (e.g., @tickets) and correct endpoint path. |
+| Wrong transitions blocked | Confirm status pair is allowed per lifecycle table. |
+| Escalation not triggered | Verify priority set to critical & escalation logic in tool/agent. |
+| Report missing metrics | Extend <code>generateTicketReportTool</code> to include additional aggregations. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # Required
+PORT=4111                   # (If using a custom server layer)
+```
+
+***
+
+## Next Extensions
+
+<CardGroup>
+  <Card title="Add Persistence" href="#" description="Back tickets with a database (Postgres, Mongo)." />
+  <Card title="Workflow Routes" href="#" description="Expose REST for ticket CRUD & SLA stats." />
+  <Card title="Observability" href="#" description="Add tracing, metrics, structured logs." />
+  <Card title="Multi-Agent Orchestration" href="#" description="Coordinate with billing or HR support agents." />
+</CardGroup>
+
+> You now have a foundation for automated ticket operations. Extend tools for SLA enforcement, sentiment analysis, or predictive assignment.
+

@@ -1,0 +1,291 @@
+# Build Your Customer Self-Service Frontend Actions Agent with Mastra
+
+> Create a Mastra agent that empowers customers to resolve issues via interactive guides, dynamic forms, knowledge search, progress tracking, and smart escalation — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- A **Customer Self-Service** Mastra agent that returns structured frontend action payloads.
+- Triggering (recommended) only when explicitly mentioned (e.g., `@selfservice` or `@help`).
+- Tool-driven responses: troubleshooting guides, dynamic forms, knowledge results, progress trackers, escalation events.
+- Optional integration into **CometChat** for conversational self-resolution before human handoff.
+
+***
+
+## Prerequisites
+
+- Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- Optional: CometChat app for embedding the agent into chat.
+
+***
+
+## Quick links
+
+- README: ./README.md
+- Agent: ./src/mastra/agents/customer-self-service-agent.ts
+- Tools:
+  - Troubleshooting Guide: ./src/mastra/tools/troubleshooting-guide-tool.ts
+  - Dynamic Form: ./src/mastra/tools/dynamic-form-tool.ts
+  - Knowledge Search: ./src/mastra/tools/knowledge-search-tool.ts
+  - Progress Tracker: ./src/mastra/tools/progress-tracker-tool.ts
+  - Escalation: ./src/mastra/tools/escalation-tool.ts
+- Registration: ./src/mastra/index.ts
+
+> No custom REST workflow routes yet—only the agent generate endpoint (add more later if needed).
+
+***
+
+## How it works
+
+The Customer Self-Service Agent:
+
+- Interprets user intent and decides which action tool to invoke.
+- Produces structured JSON describing UI actions (`SHOW_GUIDE`, `RENDER_FORM`, `SEARCH_RESULTS`, `SHOW_PROGRESS`, `ESCALATE_CHAT`).
+- Encourages autonomous resolution while identifying escalation triggers (frustration, sensitive/billing, repeated failures).
+- Supports progressive guidance: clarify → choose tool → return actionable payload → follow-up next step.
+
+Key logic embedded in agent instructions:
+- Minimal pre-tool verbosity (<= ~50 words) to stay concise.
+- Empathetic tone, clarification when intent ambiguous.
+- Multi-step progress tracking for complex flows (onboarding / configuration / recovery).
+- Dynamic form generation with validation scaffolding.
+- Knowledge retrieval with summaries & alternative suggestions.
+- Explicit escalation conditions & structured handoff.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>customer-self-service</code>.</Step>
+  <Step title="Environment">Create <code>.env</code>, add <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review agent name">Currently <code>"Customer Self-Service Agent"</code>. Optionally rename to <code>customer-self-service</code> for cleaner API paths.</Step>
+  <Step title="Run dev">Use <code>npm run dev</code>. Confirm the generate endpoint (path depends on key naming).</Step>
+  <Step title="Plan mentions">Adopt a mention token (e.g., <code>@selfservice</code>) and adjust instructions to only respond when invoked.</Step>
+  <Step title="Frontend mapper">Implement a client handler mapping returned <code>action</code> values to UI components.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime
+  - package.json
+  - tsconfig.json
+  - README.md
+  - guides.mdx (this file)
+- Mastra Core
+  - src/mastra/index.ts
+- Agent
+  - src/mastra/agents/customer-self-service-agent.ts
+- Tools
+  - troubleshooting-guide-tool.ts
+  - dynamic-form-tool.ts
+  - knowledge-search-tool.ts
+  - progress-tracker-tool.ts
+  - escalation-tool.ts
+- Entry
+  - src/index.ts
+
+***
+
+## Step 1 - Define the Agent
+
+Inside <code>customer-self-service-agent.ts</code> ensure:
+
+- Name is URL-safe if you want clean endpoints (e.g., <code>customer-self-service</code>).
+- Instructions retain: responsibilities, tool criteria, escalation triggers, interaction style.
+- Tools exported and bound in <code>tools: { ... }</code> (already present).
+- (Optional) Add mention directive: "Respond only if user includes @selfservice".
+
+***
+
+## Step 2 - Register in Mastra
+
+<code>src/mastra/index.ts</code> registers:
+
+```ts
+export const mastra = new Mastra({
+  agents: { customerSelfServiceAgent }
+});
+```
+
+Generated endpoint pattern: <code>/api/agents/{key}/generate</code> (key = object key). If you rename, keep the exported key consistent.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Install"><code>npm install</code></Step>
+  <Step title="Dev"><code>npm run dev</code></Step>
+  <Step title="Test generate">POST a message asking for help (see curls below).</Step>
+</Steps>
+
+Endpoints (assuming key = <code>customerSelfServiceAgent</code>):
+- POST <code>/api/agents/customerSelfServiceAgent/generate</code>
+
+If renamed to <code>customer-self-service</code>:
+- POST <code>/api/agents/customer-self-service/generate</code>
+
+***
+
+## Available Frontend Action Types
+
+| Action | Description | Typical Trigger |
+|--------|-------------|-----------------|
+| SHOW_GUIDE | Step-by-step troubleshooting instructions | Technical / process issue |
+| RENDER_FORM | Collect structured data | Change request / update / submission |
+| SEARCH_RESULTS | Knowledge base answers & related content | Informational question |
+| SHOW_PROGRESS | Multi-step flow status | Onboarding / recovery / configuration |
+| ESCALATE_CHAT | Human handoff event | Complex / frustration / billing / security |
+
+***
+
+## Tool Selection Guidelines
+
+<AccordionGroup>
+  <Accordion title="Troubleshooting Guide Tool">Use for multi-step resolution. Provide titles, step descriptions, optional actions & escalation notes.</Accordion>
+  <Accordion title="Dynamic Form Tool">Gather structured input (fields, validation, priority). Return a form spec consumable by UI.</Accordion>
+  <Accordion title="Knowledge Search Tool">Surface relevant docs; include short summaries & alternate suggestions if low confidence.</Accordion>
+  <Accordion title="Progress Tracker Tool">Represent current step, completed steps, and remaining phases with time estimates.</Accordion>
+  <Accordion title="Escalation Tool">Trigger when criteria met—return metadata for routing to live agent queue.</Accordion>
+</AccordionGroup>
+
+***
+
+## Step 4 - Connect to CometChat
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Navigate to <b>AI Agents</b>.</Step>
+  <Step title="Add agent">Provider=Mastra; Agent ID=<code>customer-self-service</code> (or your chosen key).</Step>
+  <Step title="Deployment URL">Public <code>/api/agents/{id}/generate</code> endpoint.</Step>
+  <Step title="Enable">Save & ensure status enabled.</Step>
+</Steps>
+
+***
+
+## Step 5 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Enter Chat Builder for the agent.</Step>
+  <Step title="Attach agent">Ensure the self-service agent is selected.</Step>
+  <Step title="Refine UX">Tune theme, suggestion prompts (e.g., "Reset password", "Billing question").</Step>
+  <Step title="Preview">Confirm action payloads appear and UI renders them.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1200" height="640" />
+</Frame>
+
+***
+
+## Step 6 - Integrate Frontend
+
+<CardGroup>
+  <Card title="Action Dispatcher" description="Map action types (SHOW_GUIDE, RENDER_FORM, etc.) to components." />
+  <Card title="State Sync" description="Persist guide progress & form draft state locally." />
+  <Card title="Escalation Bridge" description="Open live chat panel or route to queue on ESCALATE_CHAT." />
+</CardGroup>
+
+***
+
+## Step 7 - Test Your Setup
+
+<Steps>
+  <Step title="Guide generation">Request: "@selfservice my app keeps crashing on launch" → Expect SHOW_GUIDE payload.</Step>
+  <Step title="Form creation">Request: "I need to update my billing address" → Expect RENDER_FORM.</Step>
+  <Step title="Knowledge search">Request: "How do I reset MFA token?" → SEARCH_RESULTS.</Step>
+  <Step title="Progress tracking">Request: "Show my onboarding progress" → SHOW_PROGRESS.</Step>
+  <Step title="Escalation">Request: "I want to speak to a human now" → ESCALATE_CHAT.</Step>
+</Steps>
+
+```bash
+# Example: Troubleshooting guide
+curl -X POST http://localhost:4000/api/agents/customer-self-service/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@selfservice my password reset link fails" }
+    ]
+  }'
+```
+
+```bash
+# Example: Dynamic form
+curl -X POST http://localhost:4000/api/agents/customer-self-service/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@selfservice I need to change my billing address" }
+    ]
+  }'
+```
+
+```bash
+# Example: Escalation
+curl -X POST http://localhost:4000/api/agents/customer-self-service/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@selfservice I have a security breach need human help" }
+    ]
+  }'
+```
+
+***
+
+## Deployment Notes
+
+- Add auth & rate limiting to the generate endpoint.
+- Log tool invocations for action analytics (conversion, deflection rates).
+- Optionally persist guide and progress states server-side.
+- Add observability (structured logs, tracing) before scaling.
+
+***
+
+## Security & Production Checklist
+
+- Sanitize user inputs before embedding/echoing.
+- Do not expose internal escalation routing logic to end-users.
+- Validate form schemas before rendering (prevent injection in labels/help text).
+- Monitor abandonment & escalation metrics to iterate flows.
+- Keep OpenAI key server-side only.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|-----------|
+| No action payload | Agent responded text-only | Re-check instruction emphasis on tool usage & mention token. |
+| Wrong action type | Ambiguous user intent | Add clarifying question pattern or refine instructions. |
+| Escalations too frequent | Over-aggressive trigger terms | Adjust escalation criteria & sentiment detection. |
+| UI cannot render | Missing front-end action mapper | Implement switch on <code>action</code> field. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # Required
+PORT=4000                   # Example port if adding server
+```
+
+***
+
+## Next Extensions
+
+<CardGroup>
+  <Card title="Sentiment Analysis" description="Auto-escalate on frustration tone." />
+  <Card title="Deflection Metrics" description="Track resolution without human involvement." />
+  <Card title="Search Relevance" description="Add vector retrieval for deeper knowledge." />
+  <Card title="User Profiles" description="Personalize guides & form defaults." />
+</CardGroup>
+
+> You now have a foundation for scalable self-service. Expand tools for personalization, analytics, and adaptive guidance.
+

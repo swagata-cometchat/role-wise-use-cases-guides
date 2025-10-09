@@ -1,0 +1,270 @@
+# Build Your Escalation Routing & Human Handoff Agent with Mastra
+
+> Create a Mastra escalation router that classifies customer issues, assigns urgency, selects the right support tier (emergency, specialist, supervisor, human), and hands off with full context — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Escalation Router Agent** that analyzes incoming issue descriptions.
+- Keyword + rules–based triage to four tiers: emergency, specialist, supervisor, human.
+- Urgency & recommended action annotations (low → critical).
+- Multi-agent backing actors (specialist, supervisor, emergency handler, human handoff) plus an escalation checker utility.
+- Optional workflow orchestration (escalation workflow) for future automation.
+- Integration pattern for **CometChat** so chats trigger structured routing decisions.
+
+***
+
+## Prerequisites
+
+- Mastra project (or this example folder cloned).
+- Node.js 18+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- (Optional) CometChat app for chat embedding.
+
+***
+
+## Quick links
+
+- README: ./README.md
+- Router Agent (compiled): ./.mastra/.build/entry-0.mjs
+- Escalation Checker: ./src/mastra/agents/escalation-checker-agent.ts
+- Emergency Handler: ./src/mastra/agents/emergency-escalation-agent.ts
+- Specialist Agent: ./src/mastra/agents/specialist-agent.ts
+- Supervisor Agent: ./src/mastra/agents/supervisor-agent.ts
+- Human Agent Handler: ./src/mastra/agents/human-agent-handler.ts
+- Tool (escalation): ./src/mastra/tools/escalation-checker-tool.ts
+- Workflow: ./src/mastra/workflows/escalation-workflow.ts
+- Mastra registration: ./src/mastra/index.ts
+
+> Endpoint naming uses the agent registration key (object key). The exported key is <code>escalationRouterAgent</code> so the generate path becomes <code>/api/agents/escalationRouterAgent/generate</code> unless you rename it.
+
+***
+
+## How it works
+
+The system applies layered routing:
+
+1. Initial text analysis (lower-cased) against curated keyword sets for critical (emergency), high (specialist), medium (supervisor), or default (human) handling.
+2. On match, invokes the appropriate backing agent / handler to craft response instructions (e.g., emergency response plan, specialist guidance, complaint handling steps).
+3. Returns structured assessment fields: routedTo, escalationLevel, urgencyLevel, recommendedAction.
+4. encourages immediate action for critical cases (15 min SLA) and sets expectation windows for other tiers.
+5. (Extendable) Use the escalation workflow to persist, notify, or trigger further automation.
+
+Key components:
+- EscalationCheckerAgent: keyword logic & dispatch.
+- EmergencyEscalationAgent: static critical response template.
+- Specialist / Supervisor Agents: AI-driven detailed guidance.
+- HumanAgentHandler: default human handoff text.
+- Escalation Router Agent: high-level instructions (OpenAI model) optionally used directly in chat.
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code> inside <code>routing-escalations-to-liveagents</code>.</Step>
+  <Step title="Environment">Add <code>.env</code> with <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review agent key">Agent exported as <code>escalationRouterAgent</code>. Optionally rename key to <code>escalation-router</code> for cleaner path.</Step>
+  <Step title="Run dev"><code>npm run dev</code> (or start script) to launch server exposing agent endpoint.</Step>
+  <Step title="Test routing">POST sample issues (security breach, billing error, complaint) to confirm tier mapping.</Step>
+  <Step title="Integrate with chat">Adopt a mention token (e.g., <code>@escalate</code>) and instruct users accordingly.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & Config
+  - package.json
+  - tsconfig.json
+  - README.md
+  - guides.mdx (this file)
+- Mastra Registration
+  - src/mastra/index.ts
+- Agents & Handlers
+  - escalation-checker-agent.ts
+  - emergency-escalation-agent.ts
+  - specialist-agent.ts
+  - supervisor-agent.ts
+  - human-agent-handler.ts
+- Tooling / Workflows
+  - tools/escalation-checker-tool.ts
+  - workflows/escalation-workflow.ts
+- Entry
+  - src/index.ts
+  - .mastra/.build/entry-0.mjs (compiled agent bundle)
+
+***
+
+## Step 1 - Escalation Checker
+
+<AccordionGroup>
+  <Accordion title="Emergency Keywords">security breach, data breach, system down, outage, fraud, legal action, compliance violation ...</Accordion>
+  <Accordion title="Specialist Keywords">api failure, integration problem, bug, billing error, account locked, timeout ...</Accordion>
+  <Accordion title="Supervisor Keywords">complaint, refund request, poor service, policy dispute, escalate to manager ...</Accordion>
+  <Accordion title="Default Path">Falls back to human handoff if no keyword match; urgency=low.</Accordion>
+</AccordionGroup>
+
+EscalationCheckerAgent returns: assessment (text), routedTo, escalationLevel, urgencyLevel, recommendedAction.
+
+***
+
+## Step 2 - Agents & Responses
+
+<CardGroup>
+  <Card title="Emergency" description="Static high‑urgency protocol incl. teams & 15 min SLA." />
+  <Card title="Specialist" description="Streaming GPT response with technical guidance & next steps." />
+  <Card title="Supervisor" description="Complaint handling & management escalation narrative." />
+  <Card title="Human" description="Personal attention handoff text (default)." />
+</CardGroup>
+
+> Extend each agent with domain tools (logs, billing ledger, policy retrieval) to enrich responses.
+
+***
+
+## Step 3 - Run Locally
+
+<Steps>
+  <Step title="Install"><code>npm install</code></Step>
+  <Step title="Dev server"><code>npm run dev</code> (ensure server prints agent paths).</Step>
+  <Step title="Generate"><code>POST /api/agents/escalationRouterAgent/generate</code> with issue text.</Step>
+</Steps>
+
+If you rename key to <code>escalation-router</code>:
+- POST <code>/api/agents/escalation-router/generate</code>
+
+***
+
+## Routing Outcome Examples
+
+| Issue Snippet | Expected Tier | Urgency | Action Summary |
+|---------------|---------------|---------|----------------|
+| "Security breach in prod DB" | emergency | critical | Immediate emergency response & leadership alert |
+| "API timeout error 504 on checkout" | specialist | high | Technical triage within 30 min |
+| "I want to file a complaint about rude service" | supervisor | medium | Supervisor follow-up in 2 hrs |
+| "Need help adjusting settings" | human | low | Personalized assistance |
+
+***
+
+## Step 4 - Connect to CometChat
+
+<Steps>
+  <Step title="Dashboard">Open <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Add new agent (Provider=Mastra).</Step>
+  <Step title="Agent ID">Use <code>escalationRouterAgent</code> (or new key).</Step>
+  <Step title="Deployment URL">Public URL to <code>/api/agents/{id}/generate</code>.</Step>
+  <Step title="Enable">Save; ensure toggle is active.</Step>
+</Steps>
+
+***
+
+## Step 5 - Chat Builder Customization
+
+<Steps>
+  <Step title="Open variant">Enter Chat Builder for the escalation agent.</Step>
+  <Step title="Prompt suggestions">Add canned prompts: "System outage", "Billing error", "Need a refund".</Step>
+  <Step title="Mention token">Require <code>@escalate</code> to reduce noise (adjust instructions).</Step>
+  <Step title="Preview">Verify tier classification & urgency formatting.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1200" height="640" />
+</Frame>
+
+***
+
+## Step 6 - Test Your Setup
+
+<Steps>
+  <Step title="Emergency path">Post security breach text → emergency + critical.</Step>
+  <Step title="Specialist path">Post API timeout text → specialist + high.</Step>
+  <Step title="Supervisor path">Post complaint → supervisor + medium.</Step>
+  <Step title="Fallback">Generic assistance request → human + low.</Step>
+</Steps>
+
+```bash
+# Example: emergency escalation
+curl -X POST http://localhost:4000/api/agents/escalationRouterAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@escalate We have a security breach exposing customer data" }
+    ]
+  }'
+```
+
+```bash
+# Example: specialist escalation
+curl -X POST http://localhost:4000/api/agents/escalationRouterAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@escalate checkout API returning 504 timeouts" }
+    ]
+  }'
+```
+
+```bash
+# Example: supervisor escalation
+curl -X POST http://localhost:4000/api/agents/escalationRouterAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@escalate I want to file a complaint about poor service" }
+    ]
+  }'
+```
+
+***
+
+## Deployment Notes
+
+- Place behind HTTPS with authentication (JWT or API key header) if exposed publicly.
+- Add rate limiting for generate route (protect against abuse / prompt flooding).
+- Log classification decisions (tier, urgency, keywords matched) for quality monitoring.
+- Add retry & fallback (e.g., default to human if model call fails).
+
+***
+
+## Security & Production Checklist
+
+- Sanitize user-provided issue text before logging (remove PII if required).
+- Maintain audit trail for escalations (timestamp, agent, decision).
+- Enforce SLA timers (use workflow triggers or background jobs).
+- Protect OpenAI key (never ship to client).
+- Monitor for keyword drift; periodically retrain or adjust pattern lists.
+
+***
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|-----------|
+| All issues route to human | Keyword lists too narrow | Expand emergency/specialist/supervisor arrays. |
+| Over-escalation to emergency | Broad critical keywords | Narrow or anchor phrases (e.g., "system down"). |
+| Supervisor not triggered | Missing complaint synonyms | Add new terms (e.g., grievance, dissatisfaction). |
+| Latency high | Sequential streams | Consider caching static emergency template. |
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required
+PORT=4000            # (If server exposes HTTP)
+```
+
+***
+
+## Extension Ideas
+
+<CardGroup>
+  <Card title="Vector Classification" description="Use embeddings for semantic escalation detection." />
+  <Card title="SLA Workflow" description="Trigger timers & alerts via escalation workflow." />
+  <Card title="Notification Stack" description="Push to Slack / PagerDuty for critical tiers." />
+  <Card title="Analytics Dashboard" description="Visualize escalation volume & response SLAs." />
+</CardGroup>
+
+> You now have a foundation for intelligent escalation routing. Extend with semantic classification, automated notifications, and SLA tracking to mature your support operations.
+
