@@ -1,0 +1,254 @@
+# Build Your Secure SQL Query & Reporting Agent with Mastra
+
+> Create a Mastra agent that safely executes SQL (read/report) queries, analyzes results, generates insight reports, and integrates into CometChat for real‑time data assistance.
+
+***
+
+## What You’ll Build
+
+- **Mastra SQL query agent** (`sqlQueriesAgent`) that interprets natural language or raw SQL.
+- Tool‑based execution & reporting (query runner + analytic report generator).
+- (Optional) mention‑gated behavior (e.g., `@sql` in group chats) to avoid unsolicited answers.
+- Structured responses: results, performance metadata, optimization hints, follow‑up suggestions.
+- CometChat integration for collaborative data exploration.
+
+***
+
+## Prerequisites
+
+- Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- Sample SQLite DB (bundled) or connect your own.
+- CometChat app (to enable in‑chat querying).
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Agent registration**: `src/mastra/index.ts`
+- **Agent implementation (compiled)**: `.mastra/output/index.mjs`
+- **Tools**: `src/mastra/tools/execute-sql-query-tool.ts`, `src/mastra/tools/generate-query-report-tool.ts`
+
+Local generate endpoint (default): `POST http://localhost:4111/api/agents/sqlQueriesAgent/generate`
+
+***
+
+## How it works
+
+This agent:
+
+- Accepts natural language or direct SQL; converts intents to safe read queries.
+- Enforces safety: allows only `SELECT | DESCRIBE | SHOW | EXPLAIN` (as configured) and auto‑LIMITs large scans.
+- Executes via `executeSqlQueryTool` then (optionally) augments insight with `generateQueryReportTool`.
+- Grades performance, analyzes result distribution, suggests optimizations & follow‑up queries.
+- Returns formatted tabular output plus metadata (rows, duration, grade, complexity).
+- Can be fronted by CometChat; mention token prevents noise in multi‑user rooms.
+
+Key components:
+- Agent key: `sqlQueriesAgent` (route namespace)
+- Tools: `executeSqlQueryTool`, `generateQueryReportTool`
+- Sample schema: customers, products, orders, order_items
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install deps & add <code>OPENAI_API_KEY</code> to <code>.env</code>.</Step>
+  <Step title="Review agent">Open <code>src/mastra/index.ts</code> confirm tools mapping & safety instructions.</Step>
+  <Step title="(Optional) Add mention token">Adjust instructions to require <code>@sql</code> prefix if used in group chat.</Step>
+  <Step title="Run locally">Start dev server (<code>npm run dev</code> or <code>npx mastra dev</code>).</Step>
+  <Step title="Test queries">POST to <code>/api/agents/sqlQueriesAgent/generate</code> with sample SQL.</Step>
+  <Step title="Generate report">Issue a natural language request for a detailed analysis (invokes report tool).</Step>
+  <Step title="Integrate with CometChat">Register agent using its public generate URL.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+- Runtime & config
+  - `package.json`, `tsconfig.json`, `.env`, `README.md`
+- Agent & registration
+  - `src/mastra/index.ts`
+  - `.mastra/output/index.mjs` (compiled artifact)
+- Tools
+  - `src/mastra/tools/execute-sql-query-tool.ts`
+  - `src/mastra/tools/generate-query-report-tool.ts`
+- (Add migrations / DB init scripts as needed for production)
+
+***
+
+## Step 1 - Define the Agent
+
+Ensure the agent (key `sqlQueriesAgent`):
+
+- Has safety guidelines (read‑only operations unless you expand).
+- Includes both tools in its `tools` map.
+- (Optional) Requires mention token to respond.
+- Returns footer or metadata block if you want structured downstream parsing (you can add a pattern like `(rows: X | time: Yms | grade: Z)`).
+
+***
+
+## Step 2 - Execution & Reporting Tools
+
+`executeSqlQueryTool`:
+- Validates SQL (operation whitelist, rejects mutating statements).
+- Applies default LIMIT if missing.
+- Runs query & captures rows, timing, complexity rating, performance grade.
+
+`generateQueryReportTool`:
+- Consumes a query or domain request to produce: statistical summary, distributions, anomalies, recommended visuals, follow‑ups.
+
+Extend tools with:
+- Multi‑DB switching (add a `database` input param & router logic).
+- Cached result hashing to avoid recomputation.
+- Explain plan analysis (EXPLAIN parsing for suggestions).
+
+***
+
+## Step 3 - Run Locally
+
+Expected base: `http://localhost:4111/api`
+
+<Steps>
+  <Step title="Install deps"><code>npm install</code></Step>
+  <Step title="Start server"><code>npm run dev</code></Step>
+  <Step title="Simple select">Run a SELECT via generate endpoint.</Step>
+  <Step title="Report">Request an analytical report.</Step>
+</Steps>
+
+Sample curls:
+```bash
+# Direct SQL
+curl -s -X POST http://localhost:4111/api/agents/sqlQueriesAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"SELECT name, total_spent FROM customers ORDER BY total_spent DESC LIMIT 5"}]}'
+
+# Natural language (report)
+curl -s -X POST http://localhost:4111/api/agents/sqlQueriesAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Generate a report analyzing monthly sales trends and top product categories"}]}'
+```
+
+***
+
+## Step 4 - Deploy the API
+
+- Expose `POST /api/agents/sqlQueriesAgent/generate` publicly.
+- Add reverse proxy (NGINX / API gateway) & HTTPS.
+- (Optional) Provide dedicated endpoints for saved reports or cached queries.
+
+***
+
+## Step 5 - Configure in CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Go to <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Select your app → <b>AI Agents</b>.</Step>
+  <Step title="Add agent">Provider=<b>Mastra</b>; Agent ID=<code>sqlQueriesAgent</code>.</Step>
+  <Step title="Deployment URL">Public generate endpoint URL.</Step>
+  <Step title="Enable">Save and toggle on.</Step>
+</Steps>
+
+> Provide a usage hint in UI: prefix queries with `@sql` (if mention gating enabled).
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Select the SQL agent variant.</Step>
+  <Step title="Customize & Deploy">Adjust theme & code formatting display.</Step>
+  <Step title="Attach agent">Ensure SQL agent is selected.</Step>
+  <Step title="Preview">Test: simple SELECT, aggregate, natural language report.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1920" height="1080" />
+</Frame>
+
+***
+
+## Step 7 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />} description="Embed / script" href="/widget/ai-agents" horizontal />
+  <Card title="React UI Kit" icon={<img src="/docs/images/icons/react.svg" alt="React" />} href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" horizontal>Pre Built UI Components</Card>
+</CardGroup>
+
+> Use metadata (rows, grade) to trigger visualizations (charts, alerts) in your UI.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Query executes">SELECT returns rows & execution metadata.</Step>
+  <Step title="Limit enforced">Large SELECT without LIMIT returns capped rows.</Step>
+  <Step title="Report generation">Natural language analysis invokes report tool.</Step>
+  <Step title="Performance hints">Response includes optimization suggestions.</Step>
+</Steps>
+
+Additional curls:
+```bash
+# Aggregation
+curl -s -X POST http://localhost:4111/api/agents/sqlQueriesAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"SELECT customer_tier, AVG(total_spent) avg_spent FROM customers GROUP BY customer_tier"}]}'
+
+# Explain-style request (read-only expectation)
+curl -s -X POST http://localhost:4111/api/agents/sqlQueriesAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Show monthly sales trends for the past year"}]}'
+```
+
+***
+
+## Security & Production Checklist
+
+- Enforce auth (API key / JWT) on generate endpoint.
+- Strictly validate SQL (operation whitelist + regex / parser) before execution.
+- Apply maximum row / time limits & safe default LIMIT.
+- Implement per‑user rate limiting & query cost budgeting.
+- Maintain query audit log (text, timestamp, user, latency, row count).
+- Separate read replica or analytics warehouse for heavy queries.
+- Escape / parameterize any dynamic clauses (never string‑concatenate user input blindly).
+- Obfuscate PII fields in results where compliance requires.
+
+## Troubleshooting
+
+- **Rejected query**: Contains disallowed verb (INSERT/UPDATE/DELETE). Keep to read operations.
+- **Timeout**: Query exceeded execution threshold; add filters or indexes.
+- **Empty results**: Validate table/column names; agent may auto‑LIMIT; broaden criteria.
+- **Slow response**: Inspect performance grade; consider adding covering index.
+- **Report generic**: Provide more domain context (e.g., timeframe, dimensions).
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # Required OpenAI key
+PORT=4111                   # (Optional) server port
+QUERY_DEFAULT_LIMIT=100     # (Optional) enforced default LIMIT
+MAX_QUERY_ROWS=5000         # (Optional) hard cap
+```
+
+***
+
+## Next Extensions
+
+- Role‑based access control & per‑table permission matrix.
+- Query plan (EXPLAIN) parsing for deeper optimization insight.
+- Caching layer keyed by normalized SQL hash.
+- Column lineage & data catalog integration.
+- Streaming large result sets (chunked pagination).
+- Visualization API returning spec (e.g., Vega‑Lite) for charts.
+
+---
+
+Query safely. Mention `@sql` and explore your data responsibly.
+

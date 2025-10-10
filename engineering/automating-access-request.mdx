@@ -1,0 +1,290 @@
+# Build Your Access Request Workflow Agent with Mastra
+
+> Create a Mastra agent that automates access requests: intake, validation, risk & security assessment, dynamic multi‑level approvals, and provisioning — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra agents** coordinating access request lifecycle and approval routing.
+- Explicit invocation only when mentioned (e.g., `@access` or `@approval` in chat).
+- REST endpoints for: submit, validate, route approval, security assessment, process approval decisions, provision access, status & listing.
+- Integration with **CometChat** conversations for collaborative approvals.
+
+***
+
+## Prerequisites
+
+- A Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+.
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- A CometChat app (to wire the agent into chat).
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Swagger UI (local)**: `http://localhost:4002/swagger-ui`
+- **Environment variables**: see README → Environment Variables
+
+***
+
+## How it works
+
+This example implements an Access Request Workflow Agent that:
+
+- Orchestrates a risk & role aware approval flow (submission → validation → routing → security assessment → approvals → provisioning → status).
+- Uses tools in `src/mastra/tools/access-tools.ts` for validation, routing, security assessment & provisioning.
+- Provides an orchestration agent (`approval-workflow-manager`) that decides next steps, escalations, and required approver roles.
+- Maintains full audit trail and dynamic approval path based on risk level and resource sensitivity.
+- Can be surfaced inside CometChat so stakeholders approve directly within chat threads.
+
+Key components:
+- Agent: `src/mastra/agents/access-agents.ts`
+- Tools: `src/mastra/tools/access-tools.ts` (validator, router, security assessor, approval processor, provisioner)
+- Routes: `src/mastra/index.ts` (API route definitions) and/or `src/mastra/server/routes/*` if expanded
+- Types: `src/types/access-request.ts`
+- Error utilities: `src/mastra/server/util/safeErrorMessage.ts`
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">
+    Install dependencies and set <code>OPENAI_API_KEY</code> & optional <code>PORT</code> in <code>.env</code>.
+  </Step>
+
+  <Step title="Define the agent">
+    Ensure <b>approval-workflow-manager</b> agent orchestrates risk assessment, routing & escalation. It should respond only when explicitly mentioned (e.g., <code>@access</code> or <code>@approval</code>).
+  </Step>
+
+  <Step title="Register tools">
+    Expose validator, router, security assessor, approval processor & provisioner tools via the agent for contextual tool calling.
+  </Step>
+
+  <Step title="Wire server routes">
+    Confirm REST paths like <code>/api/access-request/*</code> are registered (submit, validate, route-approval, security-assessment, process-approval, provision-access, status, list).
+  </Step>
+
+  <Step title="Run locally">
+    Start the dev server (see <code>npm run dev</code>). Visit <code>/swagger-ui</code> to explore endpoints.
+  </Step>
+
+  <Step title="Connect to CometChat">
+    In Dashboard → AI Agents set Provider=Mastra, Agent ID=<code>approval-workflow-manager</code>, Deployment URL to your public generate endpoint.
+  </Step>
+</Steps>
+
+***
+
+## Project Structure
+
+Core files & folders:
+
+- Runtime & config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+  - `index.js` (entry/server bootstrap)
+- Agents
+  - `src/mastra/agents/access-agents.ts`
+- Tools
+  - `src/mastra/tools/access-tools.ts`
+  - `src/mastra/tools/index.ts`
+- Server / API
+  - `src/mastra/index.ts`
+  - `src/mastra/server/routes` (future expansion)
+  - `src/mastra/server/util/safeErrorMessage.ts`
+- Types
+  - `src/types/access-request.ts`
+
+***
+
+## Step 1 - Create the Agent
+
+In `src/mastra/agents/access-agents.ts` ensure the agent:
+
+- Has `name` (or id) <b>"approval-workflow-manager"</b> so API path becomes `/api/agents/approval-workflow-manager/*`.
+- Responds only when mentioned (design your instructions accordingly, e.g., require an @mention token).
+- Orchestrates: risk classification, required approvals, escalation triggers, and conditions (temporary access, privileged monitoring, etc.).
+- Calls tools: `accessValidator`, `approvalRouter`, `securityAssessor`, `approvalProcessor`, `accessProvisioner`.
+
+***
+
+## Step 2 - Register Agent & Routes
+
+In `src/mastra/index.ts` (and supporting server config):
+
+- Register the agent in Mastra's agent registry.
+- Provide routes under `/api/access-request/*` for each workflow stage.
+- Optionally add an agent generate endpoint `/api/agents/approval-workflow-manager/generate` for chat-based guidance & approvals.
+- Ensure CORS, logging, and error sanitation (using `safeErrorMessage`) are applied.
+
+***
+
+## Step 3 - Run the Agent
+
+Expected local base: `http://localhost:4002/api`
+
+<Steps>
+  <Step title="Install dependencies">Run <code>npm install</code>.</Step>
+  <Step title="Start dev server">Execute <code>npm run dev</code>.</Step>
+  <Step title="Submit a request">POST to <code>/api/access-request/submit</code> with requester & request details.</Step>
+  <Step title="Invoke agent">POST to <code>/api/agents/approval-workflow-manager/generate</code> mentioning it (e.g., <code>@access what approvals remain?</code>).</Step>
+</Steps>
+
+Endpoints (see Swagger UI):
+
+- POST `/api/access-request/submit` — create new access request
+- POST `/api/access-request/:requestId/validate` — validate & initial risk
+- POST `/api/access-request/:requestId/route-approval` — determine next approver
+- POST `/api/access-request/:requestId/security-assessment` — deep security assessment (tool-driven)
+- POST `/api/access-request/:requestId/process-approval` — record approval decision
+- POST `/api/access-request/:requestId/provision-access` — provision after all approvals
+- GET `/api/access-request/:requestId/status` — status & audit trail
+- GET `/api/access-requests` — list all requests
+- POST `/api/agents/approval-workflow-manager/generate` — chat with workflow agent
+
+***
+
+## Step 4 - Deploy the API
+
+- Expose `/api/agents/approval-workflow-manager/generate` publicly for CometChat.
+- Confirm Swagger UI & health route (`/`) are reachable.
+
+***
+
+## Step 5 - Configure in CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Go to <a href="https://app.cometchat.com/" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Create AI Agent">Add new → Provider: <b>Mastra</b>.</Step>
+  <Step title="Set identifiers">Agent ID = <code>approval-workflow-manager</code>; Deployment URL = public generate endpoint.</Step>
+  <Step title="Save & enable">Confirm status is Enabled.</Step>
+</Steps>
+
+> Add additional specialized agents (e.g., a "security-review" agent) similarly if you choose.
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">From AI Agents select the agent to enter Chat Builder.</Step>
+  <Step title="Customize & Deploy">Adjust layout, theme, permissions.</Step>
+  <Step title="Attach agent">Ensure the Mastra approval agent is selected.</Step>
+  <Step title="Preview">Test mention-based prompts & tool-triggering logic.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&n=2U5tVIzH12dbbFtr&q=85&s=7e5a476c0f779f984406b979ed12f972" width="5760" height="3200" />
+</Frame>
+
+***
+
+## Step 7 - Integrate
+
+Once configured, integrate into your front-end:
+
+<CardGroup>
+  <Card title="No Code - Widget" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />} description="Embed / script" href="/widget/ai-agents" horizontal />
+  <Card title="React UI Kit" icon={<img src="/docs/images/icons/react.svg" alt="React" />} href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" horizontal>Pre Built UI Components</Card>
+</CardGroup>
+
+> Users can now submit & approve requests directly in chat by mentioning the agent.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Agent responds">POST <code>/api/agents/approval-workflow-manager/generate</code> with a mention returns guidance.</Step>
+  <Step title="Lifecycle works">Walk through submit → validate → route → (security) → approvals → provision.</Step>
+  <Step title="Audit trail">Status endpoint shows chronological actions.</Step>
+  <Step title="Provisioning success">After final approval, provisioning returns credentials/permissions.</Step>
+</Steps>
+
+```bash
+# Submit an access request
+curl -X POST http://localhost:4002/api/access-request/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requesterInfo": {
+      "employeeId": "EMP001",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@company.com",
+      "department": "Engineering",
+      "jobTitle": "Software Engineer",
+      "manager": "jane.smith@company.com",
+      "requestDate": "2025-01-10"
+    },
+    "requestDetails": {
+      "accessType": "system",
+      "resourceName": "Production Database",
+      "accessLevel": "read",
+      "justification": "Troubleshooting customer performance issues",
+      "urgency": "medium",
+      "temporaryAccess": true,
+      "expirationDate": "2025-04-10",
+      "projectCode": "PRJ-42"
+    }
+  }'
+```
+
+```bash
+# Ask the agent what approvals remain
+curl -X POST http://localhost:4002/api/agents/approval-workflow-manager/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@access what approvals are pending for request 1234?" }
+    ]
+  }'
+```
+
+***
+
+## Security & Production Checklist
+
+- Enforce auth (API key / OAuth / JWT) on all POST endpoints.
+- Apply rate limiting & body size limits (especially for justification text / attachments if added).
+- Validate all request bodies with Zod schemas (already present in tools) at the API boundary.
+- Sanitize & log errors (never leak stack traces to clients in prod).
+- Encrypt secrets & never expose `OPENAI_API_KEY` to the browser.
+- Implement persistence (PostgreSQL / Redis) instead of in-memory storage for production audit trails.
+- Add monitoring for approval latency & provisioning failures.
+
+## Troubleshooting
+
+- **Agent silent**: Ensure you used an @mention & the agent ID matches registration.
+- **Routing blocked**: Validate the request was first validated (`/validate`) before calling `route-approval`.
+- **Security assessment missing**: Confirm the security assessment endpoint is implemented & tool accessible.
+- **Provisioning rejected**: Check that request status is `approved` before provisioning.
+- **Audit gaps**: Ensure each route pushes an audit entry & persistence layer writes successfully.
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # OpenAI key (required)
+PORT=4002                   # Server port (default)
+```
+
+***
+
+## Next Extensions
+
+- SLA-based escalation timers (cron / queue)
+- Webhook or email notifications for pending approvals
+- Role-based policy engine integration (e.g., OPA / Cedar)
+- Historical risk scoring & anomaly detection
+- Self-service access recertification workflows
+
+---
+
+Happy building! Mention the agent in CometChat and start approving securely.
+

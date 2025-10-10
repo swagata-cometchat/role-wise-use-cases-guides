@@ -1,0 +1,257 @@
+# Build Your Real‑Time Incident Response Group Chat Agent with Mastra
+
+> Create a Mastra agent that triages incidents, classifies severity & type, routes to the right specialty team (detection, crisis management, security response, system recovery, communications), and coordinates next steps — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Incident response group chat agent** for real‑time triage & coordination.
+- Triggered only when explicitly mentioned (e.g., `@incident` or `@ir`), preventing unsolicited replies.
+- A coordinator tool that returns: routed team, severity, incident metadata, next steps, and help type.
+- Optional workflow (`incident-response-workflow`) to orchestrate multi‑step handling and auditing.
+- Integration into **CometChat** for collaborative incident war‑room conversations.
+
+***
+
+## Prerequisites
+
+- A Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- A CometChat app (Dashboard access) if you plan to chat-enable the agent.
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Agent registration**: [src/mastra/index.ts](./src/mastra/index.ts)
+- **Coordinator tool**: [src/mastra/tools/incident-response-coordinator-tool.ts](./src/mastra/tools/incident-response-coordinator-tool.ts)
+- **Workflow**: [src/mastra/workflows/incident-response-workflow.ts](./src/mastra/workflows/incident-response-workflow.ts)
+
+Default local base (if using similar scripts): `http://localhost:4111`
+
+***
+
+## How it works
+
+This example implements a real‑time Incident Response Group Chat Agent that:
+
+- Accepts natural language incident reports (e.g., outages, breaches, performance degradation).
+- Classifies type & severity; determines correct specialty routing: `incident-detection | crisis-management | security-response | system-recovery | communication`.
+- Produces structured metadata including incident ID, current status, recommended actions, and estimated resolution timeline (when derivable).
+- Uses a single **tool** (`incidentResponseCoordinator`) behind the agent for consistent parsing & output formatting.
+- Optionally chains a **workflow** (`incident-response-workflow`) for multi‑step orchestration or asynchronous escalation handling.
+- Enforces response footer pattern: `([routedTo] | action: yes/no | help-type: [helpType])` for machine parsing in downstream systems.
+
+Key components:
+- Agent: `incidentResponseGroupChatAgent` (registered in `src/mastra/index.ts`)
+- Tool: `incidentResponseCoordinatorTool` (classification + routing)
+- Workflow: `incidentResponseWorkflow` (serial step execution around coordination) 
+- Storage & memory: LibSQL in-memory (adjust for production persistence)
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install dependencies & set <code>OPENAI_API_KEY</code> in <code>.env</code>.</Step>
+  <Step title="Review agent">Open <code>src/mastra/index.ts</code>; confirm instructions & footer pattern.</Step>
+  <Step title="Confirm tool">Verify <code>incidentResponseCoordinatorTool</code> is exported and added under <code>tools</code> for the agent.</Step>
+  <Step title="(Optional) Enable workflow">Ensure <code>incidentResponseWorkflow</code> is registered if you need step orchestration.</Step>
+  <Step title="Run locally">Start dev server (<code>npm run dev</code> or <code>npx mastra dev</code>).</Step>
+  <Step title="Send test incident">POST to <code>/api/agents/incidentResponseGroupChatAgent/generate</code> with a sample incident mention.</Step>
+  <Step title="Connect to CometChat">Configure AI Agent with ID <code>incidentResponseGroupChatAgent</code>.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+Core files & folders:
+
+- Runtime & config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+- Mastra core
+  - `src/mastra/index.ts` (agent + registrations)
+  - `src/mastra/tools/incident-response-coordinator-tool.ts`
+  - `src/mastra/workflows/incident-response-workflow.ts`
+  - `src/mastra/agents/*` (specialized agents if extended)
+- Build artifacts
+  - `.mastra/` (generated — do not edit manually)
+
+***
+
+## Step 1 - Define the Agent
+
+In `src/mastra/index.ts` verify:
+
+- Agent name/id (used in route) is `incidentResponseGroupChatAgent` → API path `/api/agents/incidentResponseGroupChatAgent/*`.
+- Instructions require explicit mention (e.g., `@incident`). Adjust system prompt if you want a different token.
+- Footer pattern is preserved; do not remove as some integrations rely on it.
+- Tool map includes `{ incidentResponseCoordinator: incidentResponseCoordinatorTool }`.
+
+***
+
+## Step 2 - Coordinator Tool
+
+File: `src/mastra/tools/incident-response-coordinator-tool.ts`
+
+Responsibilities:
+- Intake raw incident report + optional reporter name.
+- Classify: routed team (`routedTo`), severity (low | medium | high | critical), type, status.
+- Provide `nextSteps` and `helpType` (e.g., `security-mitigation`, `system-restoration`).
+- Indicate whether an action was taken (`actionTaken`).
+
+Extend by refining severity heuristics, adding new teams (update enums + instructions) or integrating telemetry lookups.
+
+***
+
+## Step 3 - Run Locally
+
+Expected local API base: `http://localhost:4111/api`
+
+<Steps>
+  <Step title="Install deps"><code>npm install</code></Step>
+  <Step title="Start server"><code>npm run dev</code></Step>
+  <Step title="Report incident">POST to <code>/api/agents/incidentResponseGroupChatAgent/generate</code></Step>
+  <Step title="Validate output">Check footer & JSON-like fields in response text.</Step>
+</Steps>
+
+Sample curl:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/incidentResponseGroupChatAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "@incident Production API latency spiked 5x and error rate climbing" }
+    ]
+  }'
+```
+
+Optional workflow invocation (if HTTP routes are exposed in your server config):
+```bash
+# (Pattern example; adjust to actual workflow endpoint naming if different)
+curl -s -X POST http://localhost:4111/api/workflows/incident-response-workflow/run \
+  -H 'Content-Type: application/json' \
+  -d '{ "request": "API returning 500s after deploy", "teamMemberName": "Alex" }'
+```
+
+***
+
+## Step 4 - Deploy the API
+
+- Expose `POST /api/agents/incidentResponseGroupChatAgent/generate` publicly.
+- (Optional) Expose workflow endpoints for advanced orchestration (`/api/workflows/incident-response-workflow/*`).
+- Add HTTPS, reverse proxy, auth & rate limiting.
+
+***
+
+## Step 5 - Configure in CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Visit <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Navigate">Your App → <b>AI Agents</b>.</Step>
+  <Step title="Add agent">Provider=<b>Mastra</b>; Agent ID=<code>incidentResponseGroupChatAgent</code>.</Step>
+  <Step title="Deployment URL">Public <code>/api/agents/incidentResponseGroupChatAgent/generate</code> endpoint.</Step>
+  <Step title="Enable">Save & confirm status is Enabled.</Step>
+</Steps>
+
+> Provide end‑user guidance: prefix emergency messages with `@incident`.
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Click the agent variant in AI Agents.</Step>
+  <Step title="Customize & Deploy">Adjust theme, layout, emergency indicators.</Step>
+  <Step title="Attach agent">Ensure the Incident Response agent is selected.</Step>
+  <Step title="Preview">Send simulated outage & breach messages.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1920" height="1080" />
+</Frame>
+
+***
+
+## Step 7 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />} description="Embed / script" href="/widget/ai-agents" horizontal />
+  <Card title="React UI Kit" icon={<img src="/docs/images/icons/react.svg" alt="React" />} href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" horizontal>Pre Built UI Components</Card>
+</CardGroup>
+
+> Use footer parsing to trigger internal dashboards or paging flows.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Agent responds">Mentioned incident returns triage output & footer.</Step>
+  <Step title="Severity mapping">Critical phrases (e.g., "data leak", "ransomware") map to <code>critical</code>.</Step>
+  <Step title="Routing">Security issues → <code>security-response</code>; outages → <code>system-recovery</code>; escalations → <code>crisis-management</code>.</Step>
+  <Step title="Workflow (optional)">Workflow run returns structured fields if enabled.</Step>
+</Steps>
+
+More curl examples:
+```bash
+# Security breach
+curl -s -X POST http://localhost:4111/api/agents/incidentResponseGroupChatAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@incident Possible credential leak detected in logs"}]}'
+
+# System outage
+curl -s -X POST http://localhost:4111/api/agents/incidentResponseGroupChatAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@incident Main database cluster unreachable"}]}'
+```
+
+***
+
+## Security & Production Checklist
+
+- Enforce authentication (API key / JWT) on generate & workflow routes.
+- Add rate limiting & request size limits to prevent abuse during large incidents.
+- Centralize logging (mask sensitive data like IPs, secrets, PII).
+- Persist incident state (PostgreSQL / Redis) instead of memory DB for resilience.
+- Implement paging / notification hooks (PagerDuty, Slack, email) using tool or workflow extensions.
+- Store OpenAI key server-side only; never expose in client bundles.
+- Monitor latency & token usage to maintain quick triage cycles.
+
+## Troubleshooting
+
+- **No footer pattern**: Confirm instructions in `src/mastra/index.ts` unchanged.
+- **Incorrect routing**: Extend classification logic inside the coordinator tool.
+- **Severity always medium**: Add stronger keyword / rule mapping or escalate to model with more context.
+- **High latency**: Reduce prompt size or switch to lower‑latency model (e.g., `gpt-4o-mini` variant if available).
+- **Workflow not found**: Ensure `incidentResponseWorkflow` was exported & registered.
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""     # OpenAI key (required)
+PORT=4111              # Optional custom server port
+```
+
+***
+
+## Next Extensions
+
+- Multi-channel notification (Slack, SMS, PagerDuty) triggered on severity >= high.
+- Automatic timeline generation & post‑incident report draft.
+- Integration with monitoring APIs (Prometheus, Datadog) for enriched context.
+- Threat intel enrichment for security events.
+- Auto-created Jira / ticket artifacts with incident metadata.
+
+---
+
+Start coordinating. Mention `@incident` and accelerate response & recovery.
+

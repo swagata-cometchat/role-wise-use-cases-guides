@@ -1,0 +1,265 @@
+# Build Your Instant Tech Docs Knowledge Agent with Mastra
+
+> Create a Mastra agent that ingests technical docs (markdown, HTML, PDF, raw text), indexes them, retrieves API references & code examples, classifies documentation, and answers developer questions with cited sources — then connect it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra knowledge agent** that powers instant technical documentation Q&A.
+- Triggered only when explicitly mentioned (e.g., `@docs` or `@tech`).
+- Endpoints / tools for: ingesting sources, searching docs, finding code examples, querying API docs, classifying content, and chatting.
+- Structured responses that always include a sources list.
+- Integrated into **CometChat** for in‑context developer assistance.
+
+***
+
+## Prerequisites
+
+- A Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- A CometChat app (optional for chat integration).
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Agent**: [src/mastra/agents/tech-docs-agent.ts](./src/mastra/agents/tech-docs-agent.ts)
+- **Tools index**: [src/mastra/tools/index.ts](./src/mastra/tools/index.ts)
+- **Ingest / retrieval tools**: [src/mastra/tools/ingest-tools.ts](./src/mastra/tools/ingest-tools.ts), [src/mastra/tools/tech-docs-tools.ts](./src/mastra/tools/tech-docs-tools.ts)
+- **Knowledge content**: [knowledge/tech-docs](./knowledge/tech-docs)
+- **Server entry**: [src/index.ts](./src/index.ts)
+
+(Default local) Swagger UI (if enabled): `http://localhost:4111/swagger-ui`
+
+***
+
+## How it works
+
+This Knowledge Agent:
+
+- Ingests documentation (URLs, local files, raw strings) into a namespace (default: `tech-docs`).
+- Normalizes & stores content as markdown for lightweight term-based retrieval.
+- Provides tools:
+  - `ingestSources` — add docs (URL / file path / inline text)
+  - `techDocsRetriever` — keyword + phrase search with scoring & excerpts
+  - `codeExampleFinder` — targeted code example search wrapper
+  - `apiDocumentationSearch` — API endpoint & method oriented search
+  - `documentationClassifier` — classify type, complexity, audience
+- Agent instructions enforce: disclaimers, source citations, retrieval-first answering, and tool usage order.
+- Responses end with a Sources list derived from retrieved filenames.
+
+Key components:
+- Agent registration: `src/mastra/index.ts` & `src/index.ts`
+- Tools: `ingestSources`, `techDocsRetriever`, `codeExampleFinder`, `apiDocumentationSearch`, `documentationClassifier`
+- Knowledge base directory: `knowledge/tech-docs/*`
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install dependencies; add <code>OPENAI_API_KEY</code> to <code>.env</code>.</Step>
+  <Step title="Review agent">Open <code>tech-docs-agent.ts</code> and verify disclaimers & tool mapping.</Step>
+  <Step title="Seed knowledge">Place markdown/PDF/text into <code>knowledge/tech-docs</code> or use the ingest endpoint.</Step>
+  <Step title="Run locally">Start server (<code>npm run dev</code>).</Step>
+  <Step title="Test retrieval">Use <code>/api/tools/searchDocs</code> with a sample query.</Step>
+  <Step title="Chat">POST to <code>/api/chat</code> (or agent generate endpoint if exposed) with a mention (e.g., <code>@docs how do I authenticate?</code>).</Step>
+  <Step title="Integrate (optional)">Configure CometChat AI Agent pointing to public generate/chat URL.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+Core files & folders:
+
+- Runtime & config
+  - `package.json`
+  - `tsconfig.json`
+  - `.env` (add secrets locally)
+  - `README.md`
+- Agent & tools
+  - `src/mastra/agents/tech-docs-agent.ts`
+  - `src/mastra/tools/ingest-tools.ts`
+  - `src/mastra/tools/tech-docs-tools.ts`
+  - `src/mastra/tools/index.ts`
+- Server entry
+  - `src/index.ts`
+- Knowledge base
+  - `knowledge/tech-docs/*.md`
+- Generated build artifacts
+  - `.mastra/` (auto-generated)
+
+***
+
+## Step 1 - Create / Validate the Agent
+
+Ensure `techDocsAgent` is registered with:
+
+- `name` = `tech-docs` → API route pattern `/api/agents/tech-docs/*` (if Mastra auto routes enabled).
+- Tools map includes: `techDocsRetriever`, `ingestSources`, `codeExampleFinder`, `apiDocumentationSearch`, `documentationClassifier`.
+- Instructions enforce retrieval first, disclaimers, and mandatory Sources list.
+
+***
+
+## Step 2 - Ingestion Workflow
+
+Use the ingestion endpoint or direct tool execution.
+
+Minimal ingestion POST:
+```bash
+curl -X POST http://localhost:4111/api/tools/ingestSources \
+  -H 'Content-Type: application/json' \
+  -d '{"sources":["https://docs.github.com/en/rest/authentication"],"namespace":"tech-docs"}'
+```
+Response lists written files or errors (prefixed with `ERROR:`).
+
+You can also ingest inline raw text blocks or local file paths.
+
+***
+
+## Step 3 - Retrieval & Query
+
+Endpoints (tool wrappers):
+
+- POST `/api/tools/searchDocs` — generic documentation search
+- POST `/api/tools/codeExamples` — technology/topic oriented code examples
+- POST `/api/tools/apiDocs` — API endpoint / method context search
+- POST `/api/tools/classifyDocs` — categorize documentation snippet
+- POST `/api/tools/ingestSources` — ingest new sources
+- POST `/api/chat` — simple chat interaction (agent response)
+
+Example search:
+```bash
+curl -s -X POST http://localhost:4111/api/tools/searchDocs \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"authentication token scopes"}'
+```
+
+***
+
+## Step 4 - Chat with the Agent
+
+```bash
+curl -s -X POST http://localhost:4111/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"@docs How do I authenticate to the REST API?"}' | jq
+```
+Agent should:
+- Call `techDocsRetriever`
+- Summarize retrieved excerpts
+- Provide implementation steps + disclaimer
+- End with `Sources: [...]`
+
+***
+
+## Step 5 - Configure in CometChat (Optional)
+
+<Steps>
+  <Step title="Open Dashboard">Go to <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="AI Agents">Select your app → <b>AI Agents</b>.</Step>
+  <Step title="Add agent">Provider=<b>Mastra</b>; Agent ID=<code>tech-docs</code>.</Step>
+  <Step title="Deployment URL">Set to public endpoint (e.g., <code>/api/agents/tech-docs/generate</code> or custom chat route).</Step>
+  <Step title="Enable">Save & toggle enabled.</Step>
+</Steps>
+
+> Educate users to mention `@docs` (or the chosen token) for scoped responses.
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">Select the Tech Docs agent entry.</Step>
+  <Step title="Customize & Deploy">Adjust theme, layout, auto-suggest hints.</Step>
+  <Step title="Attach agent">Ensure `tech-docs` is bound to the experience.</Step>
+  <Step title="Preview">Test queries: auth flows, rate limits, error handling.</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1920" height="1080" />
+</Frame>
+
+***
+
+## Step 7 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />} description="Embed / script" href="/widget/ai-agents" horizontal />
+  <Card title="React UI Kit" icon={<img src="/docs/images/icons/react.svg" alt="React" />} href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" horizontal>Pre Built UI Components</Card>
+</CardGroup>
+
+> Use returned `Sources` to hyperlink file-level context in your UI.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Ingestion works">`ingestSources` returns a non-empty <code>written</code> array.</Step>
+  <Step title="Search returns results">`searchDocs` responds with scored hits.</Step>
+  <Step title="Chat cites sources">Responses end with <code>Sources: [..]</code>.</Step>
+  <Step title="Classifier outputs categories">`classifyDocs` returns type, complexity, audience.</Step>
+</Steps>
+
+Additional test commands:
+```bash
+# Code example finder
+curl -s -X POST http://localhost:4111/api/tools/codeExamples \
+  -H 'Content-Type: application/json' \
+  -d '{"technology":"REST","topic":"authentication"}' | jq
+
+# API docs search
+curl -s -X POST http://localhost:4111/api/tools/apiDocs \
+  -H 'Content-Type: application/json' \
+  -d '{"searchQuery":"rate limit endpoints"}' | jq
+```
+
+***
+
+## Security & Production Checklist
+
+- Add auth (API key / JWT) on all tooling & chat endpoints.
+- Rate limit ingestion & search to prevent abuse.
+- Sanitize / strip sensitive tokens from ingested HTML.
+- Validate namespaces to avoid path traversal (already regex enforced).
+- Store OpenAI key server-side; never expose to frontend.
+- Persist knowledge in durable storage (mount volume or object store) for containerized deployments.
+- Monitor token usage & add caching for frequently asked queries.
+
+## Troubleshooting
+
+- **Empty results**: Confirm files exist under <code>knowledge/tech-docs</code> and query terms exceed stopword filtering.
+- **Sources show ERROR**: Inspect ingestion output; fix unreachable URLs or file paths.
+- **No Sources line**: Ensure agent instructions unchanged & retrieval tool succeeded.
+- **Slow ingestion**: Large PDFs—consider size limits or asynchronous ingest queue.
+- **Classifier generic output**: Provide more content (min 10 tokens) or refine keyword sets.
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""          # Required OpenAI key
+PORT=4111                   # (Optional) server port
+MASTRA_LOG_LEVEL=info       # Logging level
+```
+
+***
+
+## Next Extensions
+
+- Vector embedding retrieval (augment current lexical search).
+- Diff-based doc refresh & scheduled re-ingestion.
+- Syntax-highlighted code snippet extraction pipeline.
+- Per-namespace multi-tenant doc isolation.
+- Observability: query analytics & source hit heatmaps.
+- CI hook to auto-ingest docs on repository changes.
+
+---
+
+Start answering developer questions instantly — mention `@docs` and cite those sources.
+

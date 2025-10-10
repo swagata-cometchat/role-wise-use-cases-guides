@@ -1,0 +1,242 @@
+# Build Your Dev Team Coordination Agent with Mastra
+
+> Create a Mastra agent that ingests team updates, classifies intent & priority, routes to the correct role (tech‑lead / project‑manager / team‑member / stakeholders / all‑team), returns next steps & channels, and connects it to CometChat.
+
+***
+
+## What You’ll Build
+
+- **Mastra coordination agent** that analyzes and routes development updates.
+- Triggered only when explicitly mentioned (e.g., `@coord` or `@update`).
+- Tool‑driven extraction of: update type, affected components, impact, priority, recommended channels & actions.
+- Optional multi‑role sub‑agents (tech lead, PM, etc.) encapsulated behind a single tool.
+- Integrated into **CometChat** so routing decisions happen directly in chat threads.
+
+***
+
+## Prerequisites
+
+- A Mastra project (`npx create-mastra@latest my-mastra-app`).
+- Node.js 18+ (20+ recommended).
+- OpenAI API key in `.env` as `OPENAI_API_KEY`.
+- A CometChat app (Dashboard access).
+
+***
+
+## Quick links
+
+- **Project README**: [README.md](./README.md)
+- **Primary agent config**: [src/mastra/index.ts](./src/mastra/index.ts)
+- **Coordinator tool**: [src/mastra/tools/dev-team-coordinator-tool.ts](./src/mastra/tools/dev-team-coordinator-tool.ts)
+- **Agents**: [src/mastra/agents/](./src/mastra/agents)
+- **Types / logic**: (tool output schemas embedded inline)
+
+Local default Mastra dev server (if unchanged): `http://localhost:4111`
+
+***
+
+## How it works
+
+This example implements a Dev Team Coordination Agent that:
+
+- Accepts natural language updates (e.g., refactor notice, timeline shift, blocker, client demo).
+- Classifies: target role recipient, priority (low/medium/high/urgent), update type, impact, timeline.
+- Produces structured response + recommended communication channels + next steps.
+- Wraps heuristic keyword classification + role‑specific formatting behind one **tool** (`devTeamCoordinator`).
+- Enforces a response footer pattern: `([routedTo] | priority: [priority] | channels: [communicationChannels])` for easy parsing.
+
+Key components:
+- Agent: `src/mastra/index.ts` (registers `devTeamCoordinatorAgent`)
+- Tool: `src/mastra/tools/dev-team-coordinator-tool.ts` (classification & routing)
+- (Generated / build output for runtime) `.mastra/`
+
+***
+
+## Setup
+
+<Steps>
+  <Step title="Prepare project">Install dependencies & create <code>.env</code> with <code>OPENAI_API_KEY</code>.</Step>
+  <Step title="Review agent instructions">Open <code>src/mastra/index.ts</code> and confirm mention‑only behavior & footer pattern.</Step>
+  <Step title="Verify tool export">Ensure <code>devTeamCoordinatorTool</code> is exported and included in the agent's <code>tools</code> map.</Step>
+  <Step title="Run locally">Start dev server (<code>npx mastra dev</code> or <code>npm run dev</code> if scripted).</Step>
+  <Step title="Send test update">POST to <code>/api/agents/devTeamCoordinatorAgent/generate</code> with a sample team update.</Step>
+  <Step title="Integrate with CometChat">Configure the agent in Dashboard → AI Agents.</Step>
+</Steps>
+
+***
+
+## Project Structure
+
+Core files & folders for the Coordination Agent:
+
+- Runtime & config
+  - `package.json`
+  - `tsconfig.json`
+  - `README.md`
+- Mastra core
+  - `src/mastra/index.ts`
+  - `src/mastra/tools/dev-team-coordinator-tool.ts`
+  - `src/mastra/agents/*` (optional specialized role handlers)
+- Build artifacts
+  - `.mastra/` (generated – do not edit manually)
+
+***
+
+## Step 1 - Define the Coordination Agent
+
+In `src/mastra/index.ts` ensure:
+
+- Agent `name` (id) is `devTeamCoordinatorAgent` → API path `/api/agents/devTeamCoordinatorAgent/*`.
+- Instructions enforce explicit mention (you can require tokens like `@coord`).
+- Footer pattern is preserved for downstream parsing.
+- Tool map includes `{ devTeamCoordinator: devTeamCoordinatorTool }`.
+
+***
+
+## Step 2 - The Coordinator Tool
+
+File: `src/mastra/tools/dev-team-coordinator-tool.ts`
+
+Responsibilities:
+- Accept raw update text + optional `updateType` + optional declared `priority`.
+- Run internal heuristic classification (keywords for role & urgency).
+- Return structured JSON: `message`, `routedTo`, `priority`, `updateDetails`, `nextSteps`, `communicationChannels`.
+- Support roles: `tech-lead | project-manager | team-member | all-team | stakeholders`.
+
+You can extend logic (e.g., add QA lead) by:
+1. Adding keyword arrays in the underlying agent implementation.
+2. Expanding the Zod `routedTo` enum + response typing.
+
+***
+
+## Step 3 - Run Locally
+
+Expected local API base: `http://localhost:4111/api`
+
+<Steps>
+  <Step title="Install deps"><code>npm install</code></Step>
+  <Step title="Start server"><code>npx mastra dev</code></Step>
+  <Step title="Send update">POST to <code>/api/agents/devTeamCoordinatorAgent/generate</code></Step>
+  <Step title="Review output">Confirm footer & structured fields.</Step>
+</Steps>
+
+Sample curl:
+```bash
+curl -s -X POST http://localhost:4111/api/agents/devTeamCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@coord Deadline for mobile release moved up by a week – impacts QA coverage"}]}'
+```
+
+***
+
+## Step 4 - Deploy (API)
+
+- Expose `POST /api/agents/devTeamCoordinatorAgent/generate` publicly.
+- Optionally add reverse proxy / auth / rate limit.
+- Keep OpenAI key server‑side only.
+
+***
+
+## Step 5 - Configure in CometChat
+
+<Steps>
+  <Step title="Open Dashboard">Visit <a href="https://app.cometchat.com" target="_blank" rel="noreferrer">CometChat Dashboard</a>.</Step>
+  <Step title="Navigate">Select App → <b>AI Agents</b>.</Step>
+  <Step title="Add agent">Provider=<b>Mastra</b>; Agent ID=<code>devTeamCoordinatorAgent</code>.</Step>
+  <Step title="Deployment URL">Point to your public <code>/api/agents/devTeamCoordinatorAgent/generate</code>.</Step>
+  <Step title="Enable">Save & ensure status is Enabled.</Step>
+</Steps>
+
+> Add mention guidance in UI (e.g., hint users to start messages with `@coord`).
+
+***
+
+## Step 6 - Customize in Chat Builder
+
+<Steps>
+  <Step title="Open variant">From AI Agents click the agent card.</Step>
+  <Step title="Customize & Deploy">Adjust theme, layout, permitted features.</Step>
+  <Step title="Attach agent">Ensure the coordination agent is selected.</Step>
+  <Step title="Preview">Send representative updates (technical, timeline, announcement).</Step>
+</Steps>
+
+<Frame>
+  <img src="https://mintcdn.com/cometchat-22654f5b/2U5tVIzH12dbbFtr/images/ai-agent-chat-builder-preview.png?fit=max&auto=format&q=85" width="1920" height="1080" />
+</Frame>
+
+***
+
+## Step 7 - Integrate
+
+<CardGroup>
+  <Card title="No Code - Widget" icon={<img src="/docs/images/products/ai-agents.svg" alt="Widget" />} description="Embed / script" href="/widget/ai-agents" horizontal />
+  <Card title="React UI Kit" icon={<img src="/docs/images/icons/react.svg" alt="React" />} href="https://www.cometchat.com/docs/ui-kit/react/ai-assistant-chat" horizontal>Pre Built UI Components</Card>
+</CardGroup>
+
+> Routed role + priority can drive custom UI badges or notifications.
+
+***
+
+## Step 8 - Test Your Setup
+
+<Steps>
+  <Step title="Agent responds">Mentioned update returns structured coordination message.</Step>
+  <Step title="Priority logic">Urgent keywords (e.g., "production down") yield `urgent`.</Step>
+  <Step title="Routing correctness">Architecture items → `tech-lead`; timeline shifts → `project-manager`; generic progress → `team-member`.</Step>
+  <Step title="Footer present">Footer pattern always appended.</Step>
+</Steps>
+
+Additional curl examples:
+```bash
+# Technical refactor
+curl -s -X POST http://localhost:4111/api/agents/devTeamCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@coord Refactoring authentication service for improved token rotation"}]}'
+
+# Stakeholder demo
+curl -s -X POST http://localhost:4111/api/agents/devTeamCoordinatorAgent/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"@coord Client demo scheduled next Tuesday for new analytics dashboard"}]}'
+```
+
+***
+
+## Security & Production Checklist
+
+- Add authentication (API key / JWT) to agent route.
+- Rate limit requests & bound body size.
+- Validate mention token to reduce accidental triggers.
+- Log routing decisions (excluding sensitive text if required).
+- Centralize error handling & sanitize outputs.
+- Implement persistence if you need historical audit (DB / log store).
+
+## Troubleshooting
+
+- **Footer missing**: Verify instructions in `index.ts` were not modified.
+- **Wrong role**: Extend / refine keyword lists inside the underlying coordinator logic.
+- **All routing to team-member**: Keywords may not match; add synonyms or ML classifier.
+- **High latency**: Reduce model size or trim instruction verbosity.
+
+***
+
+## Environment Variables
+
+```bash .env
+OPENAI_API_KEY=""   # Required OpenAI key
+PORT=4111            # (Optional) override server port
+```
+
+***
+
+## Next Extensions
+
+- Slack / email webhook notifications per routed role.
+- Add vector search over past updates for context recall.
+- Escalation timers (cron) for stale urgent updates.
+- Metrics dashboard (counts by role, priority, MTTR for blockers).
+- Policy engine (e.g., OPA) for mandatory approvals on high‑impact changes.
+
+---
+
+Start coordinating. Mention `@coord` and streamline team communication.
+
